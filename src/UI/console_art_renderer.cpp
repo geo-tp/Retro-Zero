@@ -385,6 +385,67 @@ void draw_dc_art_into(lv_obj_t *art, uint32_t accent) {
     make_rect(art, 22, 22, 7, 1, 0x7F8C92, 220, 0);
 }
 
+// ---- Naomi / Atomiswave (46x54, candy arcade cabinet from the reference photo) ----
+void draw_naomi_aw_art_into(lv_obj_t *art, uint32_t accent) {
+    (void)accent;
+    const uint32_t shell = 0xE7E1C7;
+    const uint32_t shell_hi = 0xFFF8DB;
+    const uint32_t shell_shadow = 0xBEB79C;
+    const uint32_t red = 0xB71418;
+    const uint32_t bezel = 0x303236;
+    const uint32_t screen = 0x5C6A65;
+    const uint32_t panel = 0x111316;
+    const uint32_t pink = 0xFF5178;
+    const uint32_t green = 0x00CA63;
+    const uint32_t yellow = 0xFFD44B;
+
+    // Upright cabinet body with the tall, pale Naomi-style face.
+    lv_obj_t *cab = make_rect(art, 6, 0, 34, 47, shell, 255, 3);
+    lv_obj_set_style_border_width(cab, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(cab, lv_color_hex(shell_shadow), LV_PART_MAIN | LV_STATE_DEFAULT);
+    make_rect(art, 8, 2, 30, 2, shell_hi, 210, 1);
+    make_rect(art, 8, 4, 30, 3, red, 255, 1);
+    make_rect(art, 9, 4, 28, 1, 0xF15D43, 180, 0);
+
+    // CRT bezel and glass, with a small reflection streak.
+    make_rect(art, 9, 10, 28, 22, bezel, 255, 2);
+    make_rect(art, 12, 13, 22, 15, screen, 255, 1);
+    make_rect(art, 13, 14, 20, 13, 0x4E5A56, 210, 1);
+    make_rect(art, 22, 11, 2, 9, 0xFFFFFF, 70, 1);
+    make_rect(art, 23, 13, 1, 7, 0xFFFFFF, 90, 0);
+
+    // Speaker grilles and coin/service plate below the screen.
+    for (int x = 10; x <= 17; x += 2) {
+        make_rect(art, x, 34, 1, 2, 0x6F6A5A, 220, 0);
+    }
+    for (int x = 29; x <= 36; x += 2) {
+        make_rect(art, x, 34, 1, 2, 0x6F6A5A, 220, 0);
+    }
+    make_rect(art, 20, 33, 7, 4, 0x161719, 255, 1);
+
+    // Wide control panel: black deck, two player sticks, pink/green buttons, yellow start.
+    make_rect(art, 2, 36, 42, 9, shell_hi, 255, 3);
+    make_rect(art, 4, 37, 38, 6, panel, 255, 2);
+    make_rect(art, 8, 35, 2, 5, 0x6C6D68, 255, 1);
+    make_rect(art, 32, 35, 2, 5, 0x6C6D68, 255, 1);
+    make_rect(art, 7, 35, 5, 5, pink, 255, 3);
+    make_rect(art, 31, 35, 5, 5, green, 255, 3);
+    for (int i = 0; i < 6; ++i) {
+        make_rect(art, 15 + (i % 3) * 3, 38 + (i / 3) * 2, 2, 2, pink, 255, 1);
+        make_rect(art, 34 + (i % 3) * 3, 38 + (i / 3) * 2, 2, 2, green, 255, 1);
+    }
+    make_rect(art, 24, 39, 2, 2, yellow, 255, 1);
+    make_rect(art, 27, 39, 2, 2, yellow, 255, 1);
+
+    // Lower cabinet doors and small caution sticker hint.
+    make_rect(art, 8, 45, 30, 8, 0xD8D0B4, 255, 2);
+    make_rect(art, 10, 46, 12, 6, 0xCBC2A7, 255, 1);
+    make_rect(art, 24, 46, 11, 6, 0xEFEAD8, 255, 1);
+    make_rect(art, 19, 47, 4, 4, yellow, 255, 1);
+    make_rect(art, 20, 48, 2, 2, 0x222222, 220, 0);
+    make_rect(art, 31, 48, 1, 2, 0x444444, 255, 0);
+}
+
 // ---- PC Engine (44x44, small square) ----
 void draw_pce_art_into(lv_obj_t *art, uint32_t accent) {
     const uint32_t shell = 0xEEECE4;
@@ -737,6 +798,7 @@ static const ArtSpec kArtSpecs[] = {
     {"CP0_CORE_PS1",    52, 36, -4, 28, draw_ps1_art_into},
     {"CP0_CORE_N64",    54, 42, -5, 30, draw_n64_art_into},
     {"CP0_CORE_DC",     50, 44, -5, 30, draw_dc_art_into},
+    {"CP0_CORE_NAOMI_ATOMISWAVE", 46, 54, -8, 34, draw_naomi_aw_art_into},
     {"CP0_CORE_PCE",    44, 44, -5, 30, draw_pce_art_into},
     {"CP0_CORE_MSX",    44, 44, -5, 30, draw_msx_art_into},
     {"CP0_CORE_A2600",  52, 38, -5, 29, draw_a2600_art_into},

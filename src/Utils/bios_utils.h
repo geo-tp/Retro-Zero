@@ -12,6 +12,9 @@ struct NeoGeoBiosCheck {
     std::string error_body;
 };
 
+// Returns true when the selected frontend core id is backed by Flycast.
+bool is_flycast_env_core(const char *env_core);
+
 // Prints the BIOS files expected by the selected core, when relevant.
 void log_runtime_bios_state_for_core(const char *env_core, const char *label);
 

@@ -216,24 +216,6 @@ std::vector<std::pair<std::string, std::string>> rom_upload_system_entries()
     return entries;
 }
 
-std::string unique_rom_path(const std::string &dir, const std::string &filename)
-{
-    std::string stem = filename;
-    std::string ext;
-    const size_t dot = filename.find_last_of('.');
-    if (dot != std::string::npos && dot > 0) {
-        stem = filename.substr(0, dot);
-        ext = filename.substr(dot);
-    }
-
-    std::string candidate = join_path(dir, filename);
-    int idx = 1;
-    while (regular_file_exists(candidate)) {
-        candidate = join_path(dir, stem + "_" + std::to_string(idx++) + ext);
-    }
-    return candidate;
-}
-
 void handle_rom_upload_client(int client_fd)
 {
     std::string line;
@@ -317,7 +299,7 @@ void handle_rom_upload_client(int client_fd)
         send_http_response(client_fd, "500 Internal Server Error", "text/plain", "Cannot create destination dir");
         return;
     }
-    const std::string dst_path = unique_rom_path(dst_dir, name);
+    const std::string dst_path = join_path(dst_dir, name);
 
     std::ofstream out(dst_path, std::ios::binary);
     if (!out.is_open()) {

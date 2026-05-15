@@ -1181,6 +1181,9 @@ void blank_before_launch()
     draw_launch_controls_screen(g_root, console, g_selected_rom.empty() ? g_selected_core : g_selected_rom, g_app_config);
     lv_refr_now(nullptr);
     wait_for_any_key();
+
+    const bool show_loading = console.loadByPathOnly;
+
     if (g_root) {
         lv_obj_set_style_bg_color(g_root, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_clean(g_root);
@@ -1210,6 +1213,44 @@ void blank_before_launch()
             c.art = nullptr;
         }
         g_dots.fill(nullptr);
+
+        if (show_loading) {
+            lv_obj_set_style_bg_color(g_root, lv_color_hex(0x071019), LV_PART_MAIN | LV_STATE_DEFAULT);
+
+            lv_obj_t *title = lv_label_create(g_root);
+            lv_label_set_text(title, "Loading");
+            lv_obj_set_style_text_color(title, lv_color_hex(0xEAF6FF), LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_text_font(title, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_align(title, LV_ALIGN_CENTER, 0, -28);
+
+            lv_obj_t *system = lv_label_create(g_root);
+            lv_label_set_text(system, console.name ? console.name : "Game");
+            lv_obj_set_style_text_color(system, lv_color_hex(0x8FB6D6), LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_text_font(system, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_align(system, LV_ALIGN_CENTER, 0, -4);
+
+            lv_obj_t *track = lv_obj_create(g_root);
+            lv_obj_set_size(track, 116, 7);
+            lv_obj_align(track, LV_ALIGN_CENTER, 0, 24);
+            lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_radius(track, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_bg_color(track, lv_color_hex(0x132233), LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_bg_opa(track, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_border_width(track, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_border_color(track, lv_color_hex(0x29445F), LV_PART_MAIN | LV_STATE_DEFAULT);
+            lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+            for (int i = 0; i < 4; ++i) {
+                lv_obj_t *dot = lv_obj_create(g_root);
+                lv_obj_set_size(dot, 8, 8);
+                lv_obj_align(dot, LV_ALIGN_CENTER, -24 + i * 16, 24);
+                lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
+                lv_obj_set_style_radius(dot, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+                lv_obj_set_style_border_width(dot, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+                lv_obj_set_style_bg_color(dot, lv_color_hex(i == 0 ? console.accent : 0x2E4A64), LV_PART_MAIN | LV_STATE_DEFAULT);
+                lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
+        }
     }
     lv_refr_now(nullptr);
     usleep(30000);

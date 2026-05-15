@@ -1,4 +1,5 @@
 #include "core_downloader.h"
+#include "../Utils/bios_utils.h"
 #include "../Utils/file_utils.h"
 
 #include <cstdlib>
@@ -18,11 +19,6 @@ std::string shell_quote(const std::string &s)
     }
     q += "'";
     return q;
-}
-
-bool is_dreamcast_core(const CoreConfig &console)
-{
-    return console.envCore && std::strcmp(console.envCore, "CP0_CORE_DC") == 0;
 }
 
 } // namespace
@@ -67,7 +63,7 @@ bool downloadForConsole(const CoreConfig &console, std::string &error)
 
     std::string cmd = "mkdir -p " + shell_quote(core_dir);
 
-    if (is_dreamcast_core(console)) {
+    if (is_flycast_env_core(console.envCore)) {
         if (const char *override_so = std::getenv("CP0_DC_CORE_SO_PATH")) {
             if (override_so[0]) {
                 std::cout << "Dreamcast core .so override: " << override_so << "\n";

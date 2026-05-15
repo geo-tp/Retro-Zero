@@ -1,6 +1,7 @@
 #include "retro_frontend.h"
 
 #include "libretro_core.h"
+#include "../Utils/bios_utils.h"
 #include "../Utils/env_utils.h"
 #include "../Utils/file_utils.h"
 
@@ -169,7 +170,7 @@ bool init_hw_render_context(retro_hw_render_callback *requested)
     if (retro_frontend_context().active_env_core == "CP0_CORE_N64") {
         width = env_u32_or("CP0_N64_INTERNAL_WIDTH", width);
         height = env_u32_or("CP0_N64_INTERNAL_HEIGHT", height);
-    } else if (retro_frontend_context().active_env_core == "CP0_CORE_DC") {
+    } else if (is_flycast_env_core(retro_frontend_context().active_env_core.c_str())) {
         width = env_u32_or("CP0_DC_INTERNAL_WIDTH", 320);
         height = env_u32_or("CP0_DC_INTERNAL_HEIGHT", 240);
     }

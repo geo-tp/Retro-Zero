@@ -1,4 +1,5 @@
 #include "libretro_core.h"
+#include "../Utils/bios_utils.h"
 #include "../Utils/file_utils.h"
 
 #include <cstdlib>
@@ -118,7 +119,7 @@ void configure_core_option_overrides(const char *env_core, const char *rom_path)
         set_core_option_override("mupen64plus-astick-sensitivity", "100");
     }
 
-    if (env_core && std::strcmp(env_core, "CP0_CORE_DC") == 0) {
+    if (is_flycast_env_core(env_core)) {
         auto set_dc_option = [](const char *suffix, const char *value) {
             const std::string reicast_key = std::string("reicast_") + suffix;
             const std::string flycast_key = std::string("flycast_") + suffix;

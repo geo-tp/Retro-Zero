@@ -100,6 +100,15 @@ const std::vector<CoreConfig>& CoreRegistry::all()
             "dc", true, false
         },
         {
+            "naomi", "Naomi / Atomis", "NAO", "CP0_CORE_NAOMI_ATOMISWAVE",
+            "/home/pi/retrozero/cores/flycast_libretro.so",
+            "https://raw.githubusercontent.com/geo-tp/Retro-Zero/main/emulators/flycast_libretro.so.zip",
+            {".zip"},
+            0x00D7FF, true,
+            "CP0_ROM_DIR_NAOMI", "/home/pi/roms/naomi",
+            "naomi", true, false
+        },
+        {
             "neogeo", "SNK Neo Geo", "NEO", "CP0_CORE_NEOGEO",
             "/home/pi/retrozero/cores/fbneo_libretro.so",
             "https://raw.githubusercontent.com/geo-tp/Retro-Zero/main/emulators/fbneo_libretro.so.zip",

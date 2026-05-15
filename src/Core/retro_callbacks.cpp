@@ -1,5 +1,6 @@
 #include "retro_frontend.h"
 
+#include "../Utils/bios_utils.h"
 #include "../Utils/env_utils.h"
 
 #include <cstdlib>
@@ -93,7 +94,7 @@ bool keyboard_to_left_analog_enabled()
 
     // Activé par défaut, sans build flag ni env var.
     return retro_frontend_context().active_env_core == "CP0_CORE_N64" ||
-           retro_frontend_context().active_env_core == "CP0_CORE_DC";
+           is_flycast_env_core(retro_frontend_context().active_env_core.c_str());
 }
 
 int16_t keyboard_analog_strength()

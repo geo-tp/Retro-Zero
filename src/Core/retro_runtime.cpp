@@ -142,14 +142,13 @@ int run_retro_runtime(int argc, char **argv)
             CoreRegistry::isTwoButtonMode(selected_env_core, rom_path ? rom_path : "");
         frontend.input.set_two_button_mode(two_button_mode);
         frontend.input.set_trigger_alias_mode(
-            selected_env_core && std::strcmp(selected_env_core, "CP0_CORE_DC") == 0);
+            is_flycast_env_core(selected_env_core));
         frontend.input.set_keyboard_enabled(
             selected_env_core && std::strcmp(selected_env_core, "CP0_CORE_MSX") == 0);
         frontend.input.set_keyboard_event_callback(keyboard_event_bridge);
 
         LibretroCore core;
-        core.skip_dlclose = selected_env_core &&
-            std::strcmp(selected_env_core, "CP0_CORE_DC") == 0;
+        core.skip_dlclose = is_flycast_env_core(selected_env_core);
 
         if (!core.load(core_path)) {
             frontend.input.shutdown();
@@ -188,7 +187,7 @@ int run_retro_runtime(int argc, char **argv)
             return 1;
         }
 
-        if (selected_env_core && std::strcmp(selected_env_core, "CP0_CORE_DC") == 0) {
+        if (is_flycast_env_core(selected_env_core)) {
             log_runtime_bios_state_for_core(selected_env_core, "before retro_load_game");
         }
 
@@ -202,7 +201,7 @@ int run_retro_runtime(int argc, char **argv)
         }
 
         if (selected_env_core &&
-            (std::strcmp(selected_env_core, "CP0_CORE_DC") == 0 ||
+            (is_flycast_env_core(selected_env_core) ||
              std::strcmp(selected_env_core, "CP0_CORE_N64") == 0)) {
 
             std::cout << "input: forcing controller ports joypad,none,none,none for "

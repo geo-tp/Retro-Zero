@@ -1,8 +1,8 @@
 #include "retro_shutdown.h"
 
 #include "retro_frontend.h"
+#include "../Utils/bios_utils.h"
 
-#include <cstring>
 #include <iostream>
 #include <string>
 #include <unistd.h>
@@ -16,11 +16,10 @@ void shutdown_retro_session(
 {
     RetroFrontendContext &frontend = retro_frontend_context();
 
-    const bool dreamcast_shutdown =
-        selected_env_core && std::strcmp(selected_env_core, "CP0_CORE_DC") == 0;
+    const bool flycast_shutdown = is_flycast_env_core(selected_env_core);
     const std::string core_path_str = core_path ? core_path : "";
     const bool is_dreamcast_old_flycast =
-        dreamcast_shutdown && core_path_str.find("flycast") != std::string::npos;
+        flycast_shutdown && core_path_str.find("flycast") != std::string::npos;
 
     if (is_dreamcast_old_flycast) {
         std::cout << "[SHUTDOWN] old Flycast: skip retro_unload_game/retro_deinit/dlclose\n";

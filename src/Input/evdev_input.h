@@ -20,6 +20,9 @@ public:
     // Returns the current Libretro joypad state for one button id.
     int16_t joypad_state(unsigned id) const;
 
+    // Returns the current virtual left analog state from dedicated analog binds.
+    int16_t left_analog_state(unsigned index, unsigned id, int16_t analog_max) const;
+
     // Returns the current keyboard state for one Libretro keycode.
     int16_t keyboard_state(unsigned keycode) const;
 
@@ -47,7 +50,9 @@ private:
 
     std::vector<int> fds_;
     std::array<int, 1024> key_to_joypad_ {};
+    std::array<int, 1024> key_to_left_analog_ {};
     std::array<bool, 256> joypad_ {};
+    std::array<bool, 256> left_analog_ {};
     std::array<bool, 512> keyboard_ {};
     bool keyboard_enabled_ = false;
     void (*keyboard_event_callback_)(bool, unsigned, uint32_t, uint16_t) = nullptr;

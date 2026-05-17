@@ -51,15 +51,41 @@ unsigned evdev_digit_to_retro_key(int code)
     }
 }
 
+bool joypad_id_is_dpad_direction(int id)
+{
+    return id == RETRO_DEVICE_ID_JOYPAD_LEFT ||
+           id == RETRO_DEVICE_ID_JOYPAD_RIGHT ||
+           id == RETRO_DEVICE_ID_JOYPAD_UP ||
+           id == RETRO_DEVICE_ID_JOYPAD_DOWN;
+}
+
 }
 
 void EvdevInput::init_key_bindings()
 {
     key_to_joypad_.fill(-1);
+    key_to_left_analog_.fill(-1);
+    joypad_.fill(false);
+    left_analog_.fill(false);
+    keyboard_.fill(false);
 
     auto bind_default = [&](int key, int joypad_id) {
         if (key >= 0 && static_cast<size_t>(key) < key_to_joypad_.size()) {
             key_to_joypad_[static_cast<size_t>(key)] = joypad_id;
+        }
+    };
+
+    auto clear_left_analog_id = [&](int analog_id) {
+        for (int &mapped_id : key_to_left_analog_) {
+            if (mapped_id == analog_id) {
+                mapped_id = -1;
+            }
+        }
+    };
+
+    auto bind_left_analog = [&](int key, int analog_id) {
+        if (key >= 0 && static_cast<size_t>(key) < key_to_left_analog_.size()) {
+            key_to_left_analog_[static_cast<size_t>(key)] = analog_id;
         }
     };
 
@@ -126,6 +152,36 @@ void EvdevInput::init_key_bindings()
         }
         if (code >= 0 && static_cast<size_t>(code) < key_to_joypad_.size()) {
             key_to_joypad_[static_cast<size_t>(code)] = r.id;
+        }
+    }
+
+    // By default, the virtual analog stick follows the D-pad bindings exactly.
+    for (size_t key = 0; key < key_to_joypad_.size() && key < key_to_left_analog_.size(); ++key) {
+        const int id = key_to_joypad_[key];
+        if (joypad_id_is_dpad_direction(id)) {
+            key_to_left_analog_[key] = id;
+        }
+    }
+
+    const struct {
+        const char *env;
+        int id;
+    } analog_remaps[] = {
+        {"CP0_BIND_ANALOG_UP", RETRO_DEVICE_ID_JOYPAD_UP},
+        {"CP0_BIND_ANALOG_DOWN", RETRO_DEVICE_ID_JOYPAD_DOWN},
+        {"CP0_BIND_ANALOG_LEFT", RETRO_DEVICE_ID_JOYPAD_LEFT},
+        {"CP0_BIND_ANALOG_RIGHT", RETRO_DEVICE_ID_JOYPAD_RIGHT},
+    };
+
+    for (const auto &r : analog_remaps) {
+        int code = parse_env_key_code(r.env);
+        if (code == KEY_E || code == KEY_R) {
+            std::cerr << "[WARN] Rebinding E/R is not allowed (reserved for volume control). Ignored.\n";
+            continue;
+        }
+        if (code >= 0 && static_cast<size_t>(code) < key_to_left_analog_.size()) {
+            clear_left_analog_id(r.id);
+            bind_left_analog(code, r.id);
         }
     }
 }
@@ -201,6 +257,32 @@ void EvdevInput::poll()
                 quit_ = true;
             }
 
+            int id = -1;
+            if (static_cast<size_t>(ev.code) < key_to_joypad_.size()) {
+                id = key_to_joypad_[static_cast<size_t>(ev.code)];
+            }
+            if (id == RETRO_DEVICE_ID_JOYPAD_L && two_button_mode_) {
+                id = RETRO_DEVICE_ID_JOYPAD_A;
+            }
+
+            int analog_id = -1;
+            if (static_cast<size_t>(ev.code) < key_to_left_analog_.size()) {
+                analog_id = key_to_left_analog_[static_cast<size_t>(ev.code)];
+            }
+
+            const bool mapped_to_core =
+                (id >= 0 && static_cast<size_t>(id) < joypad_.size()) ||
+                (analog_id >= 0 && static_cast<size_t>(analog_id) < left_analog_.size());
+            if (mapped_to_core) {
+                if (id >= 0 && static_cast<size_t>(id) < joypad_.size()) {
+                    joypad_[id] = ev.value != 0;
+                }
+                if (analog_id >= 0 && static_cast<size_t>(analog_id) < left_analog_.size()) {
+                    left_analog_[analog_id] = ev.value != 0;
+                }
+                continue;
+            }
+
             // Cardputer FN+F/FN+X are exposed as KEY_UP/KEY_DOWN.
             // E = volume up, R = volume down (in plus of FN+arrows)
             if (ev.code == KEY_UP || ev.code == KEY_E) {
@@ -254,16 +336,6 @@ void EvdevInput::poll()
                 continue;
             }
 
-            int id = -1;
-            if (static_cast<size_t>(ev.code) < key_to_joypad_.size()) {
-                id = key_to_joypad_[static_cast<size_t>(ev.code)];
-            }
-            if (id == RETRO_DEVICE_ID_JOYPAD_L && two_button_mode_) {
-                id = RETRO_DEVICE_ID_JOYPAD_A;
-            }
-            if (id >= 0 && static_cast<size_t>(id) < joypad_.size()) {
-                joypad_[id] = ev.value != 0;
-            }
         }
     }
 
@@ -322,6 +394,40 @@ int16_t EvdevInput::joypad_state(unsigned id) const
         }
     }
     return joypad_[id] ? 1 : 0;
+}
+
+int16_t EvdevInput::left_analog_state(unsigned index, unsigned id, int16_t analog_max) const
+{
+    if (index != RETRO_DEVICE_INDEX_ANALOG_LEFT) {
+        return 0;
+    }
+
+    switch (id) {
+    case RETRO_DEVICE_ID_ANALOG_X:
+        if (left_analog_[RETRO_DEVICE_ID_JOYPAD_LEFT] &&
+            !left_analog_[RETRO_DEVICE_ID_JOYPAD_RIGHT]) {
+            return static_cast<int16_t>(-analog_max);
+        }
+        if (left_analog_[RETRO_DEVICE_ID_JOYPAD_RIGHT] &&
+            !left_analog_[RETRO_DEVICE_ID_JOYPAD_LEFT]) {
+            return analog_max;
+        }
+        return 0;
+
+    case RETRO_DEVICE_ID_ANALOG_Y:
+        if (left_analog_[RETRO_DEVICE_ID_JOYPAD_UP] &&
+            !left_analog_[RETRO_DEVICE_ID_JOYPAD_DOWN]) {
+            return static_cast<int16_t>(-analog_max);
+        }
+        if (left_analog_[RETRO_DEVICE_ID_JOYPAD_DOWN] &&
+            !left_analog_[RETRO_DEVICE_ID_JOYPAD_UP]) {
+            return analog_max;
+        }
+        return 0;
+
+    default:
+        return 0;
+    }
 }
 
 int16_t EvdevInput::keyboard_state(unsigned keycode) const

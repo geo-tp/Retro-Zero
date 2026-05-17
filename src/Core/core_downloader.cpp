@@ -1,4 +1,5 @@
 #include "core_downloader.h"
+#include "core_registry.h"
 #include "../Utils/bios_utils.h"
 #include "../Utils/file_utils.h"
 
@@ -91,6 +92,38 @@ bool downloadForConsole(const CoreConfig &console, std::string &error)
             if (override_url[0]) {
                 core_url = override_url;
                 std::cout << "Dreamcast core download override: " << core_url << "\n";
+            }
+        }
+    }
+
+    if (CoreRegistry::isPspCore(console.envCore)) {
+        if (const char *override_so = std::getenv("CP0_PSP_CORE_SO_PATH")) {
+            if (override_so[0]) {
+                std::cout << "PPSSPP core .so override: " << override_so << "\n";
+
+                cmd += " && cp " + shell_quote(override_so) + " " + shell_quote(core_path);
+
+                int rc = std::system(cmd.c_str());
+                if (rc != 0) {
+                    error = "local .so install failed.";
+                    return false;
+                }
+
+                return true;
+            }
+        }
+
+        if (const char *override_path = std::getenv("CP0_PSP_CORE_ZIP_PATH")) {
+            if (override_path[0]) {
+                local_archive = override_path;
+                std::cout << "PPSSPP core local archive override: " << local_archive << "\n";
+            }
+        }
+
+        if (const char *override_url = std::getenv("CP0_PSP_CORE_ZIP_URL")) {
+            if (override_url[0]) {
+                core_url = override_url;
+                std::cout << "PPSSPP core download override: " << core_url << "\n";
             }
         }
     }

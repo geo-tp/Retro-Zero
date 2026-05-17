@@ -19,11 +19,13 @@ Retro-Zero is a  Libretro-based emulator frontend designed for the **Cardputer Z
 | Master System | Genesis Plus GX | `.sms` |
 | Game Gear | Genesis Plus GX | `.gg` |
 | Dreamcast | Flycast | `.cdi`, `.gdi`, `.chd` |
+| Naomi / Atomiswave | Flycast | `.zip` |
 | Neo Geo | FBNeo | `.zip` |
 | Neo Geo Pocket | Mednafen NGP | `.ngp`, `.ngc` |
 | FBNeo Arcade | FBNeo | `.zip` |
 | MAME 2010 | MAME 2010 | `.zip` |
 | PlayStation | PCSX ReARMed | `.cue`, `.bin`, `.chd`, `.pbp`, `.iso`, `.m3u` |
+| PSP | PPSSPP | `.iso`, `.cso`, `.pbp`, `.elf`, `.prx`, `.chd` |
 | PC Engine | Mednafen PCE Fast | `.pce`, `.sgx` |
 | MSX / MSX2 | blueMSX | `.rom`, `.mx1`, `.mx2` |
 | Atari 2600 | Stella 2014 | `.a26`, `.bin` |
@@ -50,6 +52,13 @@ For example:
 /home/pi/retrozero/cores/quicknes_libretro.so
 /home/pi/retrozero/cores/snes9x_libretro.so
 /home/pi/retrozero/cores/mupen64plus_libretro.so
+/home/pi/retrozero/cores/ppsspp_libretro.so
+```
+
+The PPSSPP core is patched for the Cardputer Zero / VC4 / GLES2 target. It uses OpenGL ES 2.0 hardware rendering, conservative VC4 buffer safeguards, and does not require a PSP BIOS. PPSSPP assets, when needed by the core build, should be placed in:
+
+```txt
+/home/pi/retrozero/system/PPSSPP
 ```
 
 ## ROM directories
@@ -68,10 +77,12 @@ By default, ROMs are expected under:
 | Master System | `/home/pi/roms/sms` |
 | Game Gear | `/home/pi/roms/gg` |
 | Dreamcast | `/home/pi/roms/dc` |
+| Naomi / Atomiswave | `/home/pi/roms/naomi` |
 | Neo Geo | `/home/pi/roms/neogeo` |
 | FBNeo | `/home/pi/roms/fbn` |
 | MAME | `/home/pi/roms/mame` |
 | PS1 | `/home/pi/roms/ps1` |
+| PSP | `/home/pi/roms/psp` |
 | PC Engine | `/home/pi/roms/pce` |
 | MSX | `/home/pi/roms/msx` |
 | Atari 2600 | `/home/pi/roms/a2600` |
@@ -80,7 +91,6 @@ By default, ROMs are expected under:
 | WonderSwan | `/home/pi/roms/ws` |
 
 You can use the **ROM Upload** features to directly import ROM to your device.
-
 
 ## Saves
 
@@ -97,6 +107,7 @@ Example:
 ```txt
 /home/pi/retrozero/saves/n64
 /home/pi/retrozero/saves/ps1
+/home/pi/retrozero/saves/psp
 /home/pi/retrozero/saves/gba
 ```
 

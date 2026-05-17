@@ -1,4 +1,5 @@
 #include "libretro_core.h"
+#include "core_registry.h"
 #include "../Utils/bios_utils.h"
 #include "../Utils/file_utils.h"
 
@@ -165,6 +166,76 @@ void configure_core_option_overrides(const char *env_core, const char *rom_path)
                   << " boot_to_bios=disabled"
                   << " threaded_rendering=enabled"
                   << " internal_resolution=320x240\n";
+    }
+
+    if (CoreRegistry::isPspCore(env_core)) {
+        auto set_psp_option = [](const char *suffix, const char *value) {
+            const std::string key = std::string("ppsspp_") + suffix;
+            set_core_option_override(key.c_str(), value);
+        };
+
+        set_psp_option("cpu_core", "JIT");
+        set_psp_option("renderer", "OpenGL");
+        set_psp_option("backend", "OpenGL");
+        set_psp_option("gles2", "enabled");
+
+        set_psp_option("software_rendering", "disabled");
+
+        set_psp_option("internal_resolution", "480x272");
+        set_psp_option("rendering_resolution", "480x272");
+        set_psp_option("output_resolution", "480x272");
+
+        set_psp_option("buffered_rendering", "enabled");
+        set_psp_option("rendering_mode", "Buffered");
+
+        set_psp_option("frameskip", "2");
+        set_psp_option("frameskiptype", "Number of frames");
+        set_psp_option("auto_frameskip", "enabled");
+        set_psp_option("frame_duplication", "disabled");
+
+        set_psp_option("fast_memory", "enabled");
+        set_psp_option("ignore_bad_memory_access", "enabled");
+        set_psp_option("io_timing_method", "Fast");
+        set_psp_option("cache_iso", "disabled");
+
+        set_psp_option("inflight_frames", "No buffer");
+        set_psp_option("detect_vsync_swap_interval", "disabled");
+
+        set_psp_option("skip_buffer_effects", "disabled");
+        set_psp_option("skip_gpu_readbacks", "enabled");
+        set_psp_option("lower_resolution_for_effects", "Aggressive");
+
+        set_psp_option("texture_scaling_level", "Off");
+        set_psp_option("texture_shader", "Off");
+        set_psp_option("texture_anisotropic_filtering", "off");
+        set_psp_option("texture_filtering", "Auto");
+        set_psp_option("texture_deposterize", "disabled");
+        set_psp_option("texture_replacement", "disabled");
+
+        set_psp_option("lazy_texture_caching", "enabled");
+        set_psp_option("retain_changed_textures", "disabled");
+
+        set_psp_option("gpu_hardware_transform", "enabled");
+        set_psp_option("software_skinning", "disabled");
+        set_psp_option("vertex_cache", "enabled");
+
+        set_psp_option("block_transfer_gpu", "disabled");
+
+        set_psp_option("disable_range_culling", "disabled");
+
+        set_psp_option("hardware_tesselation", "disabled");
+        set_psp_option("spline_quality", "Low");
+        set_psp_option("spline_bezier_quality", "Low");
+
+        set_psp_option("mulitsample_level", "disabled");
+        set_psp_option("cropto16x9", "enabled");
+
+        set_psp_option("enable_wlan", "disabled");
+        set_psp_option("enable_builtin_pro_ad_hoc_server", "disabled");
+        set_psp_option("enable_upnp", "disabled");
+        set_psp_option("upnp_use_original_port", "disabled");
+        set_psp_option("forced_first_connect", "disabled");
+
     }
 }
 

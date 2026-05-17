@@ -273,6 +273,88 @@ void draw_ps1_art_into(lv_obj_t *art, uint32_t accent) {
     make_rect(art, 24, 20, 2, 2, 0x40A85C, 255, 1);
 }
 
+// ---- PSP (58x32, wide handheld silhouette) ----
+void draw_psp_art_into(lv_obj_t *art, uint32_t accent) {
+    const uint32_t shell = 0x15191F;
+    const uint32_t side = 0x252B31;
+    const uint32_t deep = 0x05070A;
+    const uint32_t rim = 0x4B535D;
+    const uint32_t gloss = 0x3B434D;
+    const uint32_t symbol = 0xD9DEE6;
+
+    lv_obj_t *body = make_rect(art, 0, 3, 58, 26, shell, 255, 12);
+    lv_obj_set_style_border_width(body, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(body, lv_color_hex(rim), LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    // Rounded PSP-1000 side grips and glossy shoulder caps.
+    make_rect(art, 1, 5, 13, 22, side, 235, 10);
+    make_rect(art, 44, 5, 13, 22, side, 235, 10);
+    make_rect(art, 3, 3, 12, 4, deep, 255, 3);
+    make_rect(art, 43, 3, 12, 4, deep, 255, 3);
+    make_rect(art, 15, 2, 28, 2, 0x0B0E12, 255, 1);
+    make_rect(art, 16, 2, 26, 1, 0x6C737B, 150, 0);
+    make_rect(art, 4, 5, 50, 1, gloss, 150, 0);
+    make_rect(art, 3, 27, 52, 1, 0x07090D, 210, 0);
+
+    // Wide black screen with a subtle glass reflection.
+    make_rect(art, 15, 6, 29, 17, 0x070A10, 255, 2);
+    make_rect(art, 17, 7, 25, 15, deep, 255, 1);
+    make_rect(art, 18, 8, 21, 2, 0x202A39, 180, 1);
+    make_rect(art, 19, 10, 9, 1, accent, 90, 0);
+
+    // Bottom command rail with a tiny PSP wordmark.
+    make_rect(art, 14, 23, 31, 5, 0x07090D, 255, 3);
+    make_rect(art, 15, 23, 29, 1, 0x5A626D, 170, 0);
+    make_rect(art, 25, 25, 3, 1, symbol, 230, 0);
+    make_rect(art, 25, 26, 1, 1, symbol, 230, 0);
+    make_rect(art, 29, 25, 4, 1, symbol, 230, 0);
+    make_rect(art, 30, 26, 2, 1, symbol, 230, 0);
+    make_rect(art, 34, 25, 3, 1, symbol, 230, 0);
+    make_rect(art, 34, 26, 1, 1, symbol, 230, 0);
+    make_rect(art, 18, 25, 4, 1, 0x8B929B, 210, 0);
+    make_rect(art, 39, 25, 4, 1, 0x8B929B, 210, 0);
+
+    // Left speaker holes above the d-pad.
+    make_rect(art, 7, 8, 1, 1, 0x030405, 255, 0);
+    make_rect(art, 9, 8, 1, 1, 0x030405, 255, 0);
+    make_rect(art, 6, 10, 1, 1, 0x030405, 255, 0);
+    make_rect(art, 8, 10, 1, 1, 0x030405, 255, 0);
+
+    // D-pad disc and four separate glossy directions.
+    make_rect(art, 4, 12, 11, 10, 0x101318, 255, 6);
+    make_rect(art, 8, 13, 3, 3, 0x21262D, 255, 1);
+    make_rect(art, 8, 18, 3, 3, 0x21262D, 255, 1);
+    make_rect(art, 5, 16, 3, 3, 0x21262D, 255, 1);
+    make_rect(art, 11, 16, 3, 3, 0x21262D, 255, 1);
+    make_rect(art, 9, 14, 1, 1, symbol, 220, 0);
+    make_rect(art, 9, 19, 1, 1, symbol, 180, 0);
+    make_rect(art, 6, 17, 1, 1, symbol, 190, 0);
+    make_rect(art, 12, 17, 1, 1, symbol, 190, 0);
+
+    // Analog nub with the textured look of the reference.
+    make_rect(art, 6, 23, 6, 6, 0x11151B, 255, 4);
+    make_rect(art, 7, 24, 4, 4, 0x2C333C, 255, 3);
+    make_rect(art, 8, 25, 1, 1, 0x79818B, 180, 0);
+    make_rect(art, 10, 26, 1, 1, 0x79818B, 150, 0);
+
+    // Face buttons: diamond layout with PlayStation symbol hints.
+    make_rect(art, 48, 9, 4, 4, 0x090B0F, 255, 3);
+    make_rect(art, 52, 14, 4, 4, 0x090B0F, 255, 3);
+    make_rect(art, 44, 14, 4, 4, 0x090B0F, 255, 3);
+    make_rect(art, 48, 19, 4, 4, 0x090B0F, 255, 3);
+    make_rect(art, 49, 10, 2, 1, symbol, 210, 0);
+    make_rect(art, 50, 11, 1, 1, symbol, 210, 0);
+    make_rect(art, 53, 15, 2, 2, symbol, 190, 1);
+    make_rect(art, 45, 15, 2, 2, symbol, 190, 0);
+    make_rect(art, 49, 20, 2, 2, symbol, 190, 0);
+
+    // Tiny right-side wordmark/speaker details.
+    make_rect(art, 47, 7, 6, 1, 0x0B0D11, 255, 0);
+    make_rect(art, 48, 8, 4, 1, 0x4A5058, 160, 0);
+    make_rect(art, 54, 21, 1, 1, 0x59616B, 220, 0);
+    make_rect(art, 55, 23, 1, 1, 0x59616B, 180, 0);
+}
+
 // ---- Nintendo 64 (54x42, top/front console silhouette) ----
 void draw_n64_art_into(lv_obj_t *art, uint32_t accent) {
     const uint32_t shell = 0x303030;
@@ -795,6 +877,7 @@ static const ArtSpec kArtSpecs[] = {
     {"CP0_CORE_NEOGEO", 50, 40, -5, 29, draw_neogeo_art_into},
     {"CP0_CORE_FBN",    38, 52, -7, 33, draw_cps_art_into},
     {"CP0_CORE_MAME",   38, 52, -7, 33, draw_mame_art_into},
+    {"CP0_CORE_PSP",    58, 32, -3, 27, draw_psp_art_into},
     {"CP0_CORE_PS1",    52, 36, -4, 28, draw_ps1_art_into},
     {"CP0_CORE_N64",    54, 42, -5, 30, draw_n64_art_into},
     {"CP0_CORE_DC",     50, 44, -5, 30, draw_dc_art_into},

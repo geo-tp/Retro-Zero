@@ -65,8 +65,11 @@ LaunchPadHints launch_hints_for_console(const CoreConfig &console)
     if (std::strcmp(console.envCore, "CP0_CORE_PS1") == 0) {
         return {"PlayStation", "Square", "Cross", "Triangle", "Circle", "L1", "R1", true, true, true};
     }
+    if (std::strcmp(console.envCore, "CP0_CORE_PSP") == 0) {
+        return {"PSP", "Square", "Cross", "Triangle", "Circle", "L", "R", true, true, true};
+    }
     if (std::strcmp(console.envCore, "CP0_CORE_NEOGEO") == 0 ||
-        std::strcmp(console.envCore, "CP0_CORE_FBN") == 0 || 
+        std::strcmp(console.envCore, "CP0_CORE_FBN") == 0 ||
         std::strcmp(console.envCore, "CP0_CORE_MAME") == 0) {
         return {"Arcade", "B", "A", "D", "C", "", "", true, true, false};
     }
@@ -276,5 +279,3 @@ void draw_launch_controls_screen(
     lv_obj_set_style_text_color(foot, lv_color_hex(0x7A7A84), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(foot, &lv_font_montserrat_10, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
-
-

@@ -23,6 +23,10 @@ const std::array<BindAction, kBindActionCount> kBindActions = {{
     {"Select", "CP0_BIND_SELECT", "bind_select", KEY_B},
     {"L2", "CP0_BIND_L2", "bind_l2", KEY_N},
     {"R2", "CP0_BIND_R2", "bind_r2", KEY_M},
+    {"Analog Up", "CP0_BIND_ANALOG_UP", "bind_analog_up", -1},
+    {"Analog Down", "CP0_BIND_ANALOG_DOWN", "bind_analog_down", -1},
+    {"Analog Left", "CP0_BIND_ANALOG_LEFT", "bind_analog_left", -1},
+    {"Analog Right", "CP0_BIND_ANALOG_RIGHT", "bind_analog_right", -1},
 }};
 
 namespace {
@@ -66,6 +70,7 @@ void reset_app_config_defaults(AppConfig &config)
 std::string key_name_for_code(int code)
 {
     switch (code) {
+    case -1: return "Auto";
     case KEY_A: return "A";
     case KEY_B: return "B";
     case KEY_C: return "C";
@@ -132,6 +137,10 @@ void apply_app_config_env(const AppConfig &config)
     setenv("CP0_DEFAULT_BRIGHTNESS_PERCENT", brightness_buf, 1);
 
     for (size_t i = 0; i < config.binds.size(); ++i) {
+        if (config.binds[i] < 0) {
+            unsetenv(kBindActions[i].env_name);
+            continue;
+        }
         char key_buf[16];
         snprintf(key_buf, sizeof(key_buf), "%d", config.binds[i]);
         setenv(kBindActions[i].env_name, key_buf, 1);
@@ -237,7 +246,10 @@ void load_app_config_file(AppConfig &config)
         for (size_t i = 0; i < config.binds.size(); ++i) {
             if (key == kBindActions[i].cfg_key) {
                 int code = std::atoi(value.c_str());
-                if (code >= 0 && code <= KEY_MAX) config.binds[i] = code;
+                if ((code >= 0 && code <= KEY_MAX) ||
+                    (code == -1 && kBindActions[i].default_key < 0)) {
+                    config.binds[i] = code;
+                }
                 break;
             }
         }

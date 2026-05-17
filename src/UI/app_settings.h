@@ -15,7 +15,7 @@ struct BindAction {
     int default_key;
 };
 
-constexpr std::size_t kBindActionCount = 14;
+constexpr std::size_t kBindActionCount = 18;
 extern const std::array<BindAction, kBindActionCount> kBindActions;
 
 // Persistent launcher settings mirrored to env vars before starting a core.

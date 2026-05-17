@@ -6,6 +6,7 @@ The bundled cores are dated **May 10, 2026**. All of them have been tested and c
 
 - **Flycast / Dreamcast** uses an older core on purpose. This version was selected because it provides better performance and compatibility with the current Cardputer Zero rendering pipeline.
 - **Mupen / Nintendo 64** uses a an older core specific ARM64 + GLES2-compatible.
+- **PPSSPP** : uses a custom fixed core to avoid segfaults: GL push-buffer uploads are capped/segmented to avoid huge VC4 stream-buffer flushes, The VC4 path suppresses the "Video memory FULL" OSD render after OOM and logs to console instead, Texture/FBO/draw upload OOM paths now drop the current render task safely.
 
 The goal is not necessarily to use the newest possible upstream core for every system, but to provide the best tested balance between:
 

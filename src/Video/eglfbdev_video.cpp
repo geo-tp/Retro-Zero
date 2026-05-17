@@ -3,6 +3,7 @@
 #include "fbdev_video.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -14,6 +15,7 @@
 #if CP0_WITH_EGL_FBDEV
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
+#include <pthread.h>
 
 #ifndef EGL_PLATFORM_SURFACELESS_MESA
 #define EGL_PLATFORM_SURFACELESS_MESA 0x31DD
@@ -35,7 +37,18 @@ bool env_enabled(const char *name, bool fallback)
 {
     const char *value = std::getenv(name);
     if (!value || !value[0]) return fallback;
-    return value[0] != '0';
+    if (std::strcmp(value, "0") == 0 ||
+        std::strcmp(value, "false") == 0 ||
+        std::strcmp(value, "off") == 0 ||
+        std::strcmp(value, "no") == 0) {
+        return false;
+    }
+    return true;
+}
+
+bool egl_debug_enabled()
+{
+    return env_enabled("CP0_EGL_DEBUG", false);
 }
 
 unsigned env_u32(const char *name, unsigned fallback)
@@ -115,6 +128,45 @@ bool initialize_display(EGLDisplay display, const char *label)
     log_egl_error(label);
     return false;
 }
+
+void log_make_current_before(const char *site,
+                             const char *reason,
+                             EGLDisplay display,
+                             EGLSurface draw,
+                             EGLSurface read,
+                             EGLContext context)
+{
+    std::fprintf(stderr,
+                 "EGL makeCurrent begin site=%s reason=%s thread=%lu display=%p draw=%p read=%p ctx=%p currentCtx=%p currentDraw=%p currentRead=%p\n",
+                 site ? site : "?",
+                 reason ? reason : "?",
+                 static_cast<unsigned long>(pthread_self()),
+                 static_cast<void *>(display),
+                 static_cast<void *>(draw),
+                 static_cast<void *>(read),
+                 static_cast<void *>(context),
+                 static_cast<void *>(eglGetCurrentContext()),
+                 static_cast<void *>(eglGetCurrentSurface(EGL_DRAW)),
+                 static_cast<void *>(eglGetCurrentSurface(EGL_READ)));
+}
+
+void log_make_current_after(const char *site,
+                            const char *reason,
+                            EGLBoolean ok,
+                            EGLint error)
+{
+    std::fprintf(stderr,
+                 "EGL makeCurrent result site=%s reason=%s ok=%d err=0x%04x(%s) thread=%lu currentCtx=%p currentDraw=%p currentRead=%p\n",
+                 site ? site : "?",
+                 reason ? reason : "?",
+                 ok == EGL_TRUE ? 1 : 0,
+                 error,
+                 egl_error_name(error),
+                 static_cast<unsigned long>(pthread_self()),
+                 static_cast<void *>(eglGetCurrentContext()),
+                 static_cast<void *>(eglGetCurrentSurface(EGL_DRAW)),
+                 static_cast<void *>(eglGetCurrentSurface(EGL_READ)));
+}
 #endif
 }
 
@@ -123,11 +175,13 @@ bool EglFbdevVideo::init(FbdevVideo *fbdev,
                          unsigned width,
                          unsigned height,
                          bool depth,
-                         bool stencil)
+                         bool stencil,
+                         bool keep_current)
 {
     shutdown();
 
     fbdev_ = fbdev;
+    keep_current_ = keep_current;
     width_ = env_u32("CP0_EGL_FBDEV_WIDTH", width ? width : 320);
     height_ = env_u32("CP0_EGL_FBDEV_HEIGHT", height ? height : 240);
     logged_first_present_ = false;
@@ -210,7 +264,7 @@ bool EglFbdevVideo::init(FbdevVideo *fbdev,
     fbo_depth_ = depth;
     fbo_stencil_ = stencil;
 
-    if (!make_current()) {
+    if (!make_current("egl-init")) {
         shutdown();
         return false;
     }
@@ -225,6 +279,9 @@ bool EglFbdevVideo::init(FbdevVideo *fbdev,
     initialized_ = true;
 
     std::cout << "egl fbdev: GLES2 pbuffer " << width_ << "x" << height_ << "\n";
+    if (keep_current_) {
+        std::cout << "egl fbdev PSP: CP0_PSP_KEEP_EGL_CURRENT=1, keeping context current across retro_run/present\n";
+    }
 
     return true;
 #else
@@ -246,12 +303,37 @@ void EglFbdevVideo::shutdown()
     EGLSurface surface = static_cast<EGLSurface>(surface_);
 
     if (display != EGL_NO_DISPLAY && display) {
+        const bool debug = egl_debug_enabled();
         if (context != EGL_NO_CONTEXT && context) {
-            eglMakeCurrent(display, surface, surface, context);
+            if (keep_current_ && debug) {
+                log_make_current_before("egl-shutdown", "bind-for-destroy", display, surface, surface, context);
+            }
+            EGLBoolean ok = eglMakeCurrent(display, surface, surface, context);
+            EGLint error = eglGetError();
+            if (keep_current_ && debug) {
+                log_make_current_after("egl-shutdown", "bind-for-destroy", ok, error);
+            } else if (ok != EGL_TRUE) {
+                std::fprintf(stderr,
+                             "eglMakeCurrent FAILED site=egl-shutdown err=0x%04x(%s)\n",
+                             error,
+                             egl_error_name(error));
+            }
             destroy_explicit_fbo();
         }
 
-        eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (keep_current_ && debug) {
+            log_make_current_before("egl-shutdown", "clear", display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        }
+        EGLBoolean ok = eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        EGLint error = eglGetError();
+        if (keep_current_ && debug) {
+            log_make_current_after("egl-shutdown", "clear", ok, error);
+        } else if (ok != EGL_TRUE) {
+            std::fprintf(stderr,
+                         "eglMakeCurrent FAILED site=egl-shutdown-clear err=0x%04x(%s)\n",
+                         error,
+                         egl_error_name(error));
+        }
 
         if (context != EGL_NO_CONTEXT && context) {
             eglDestroyContext(display, context);
@@ -273,38 +355,115 @@ void EglFbdevVideo::shutdown()
     fbdev_ = nullptr;
     logged_first_present_ = false;
     explicit_fbo_ = true;
+    keep_current_ = false;
 
     readback_rgb565_.clear();
     readback_rgba8888_.clear();
 }
 
-bool EglFbdevVideo::make_current()
+bool EglFbdevVideo::make_current(const char *site)
 {
 #if CP0_WITH_EGL_FBDEV
     if (!display_ || !surface_ || !context_) {
         return false;
     }
 
-    return eglMakeCurrent(static_cast<EGLDisplay>(display_),
-                          static_cast<EGLSurface>(surface_),
-                          static_cast<EGLSurface>(surface_),
-                          static_cast<EGLContext>(context_)) == EGL_TRUE;
+    EGLDisplay display = static_cast<EGLDisplay>(display_);
+    EGLSurface surface = static_cast<EGLSurface>(surface_);
+    EGLContext context = static_cast<EGLContext>(context_);
+    EGLContext cur_ctx = eglGetCurrentContext();
+    EGLSurface cur_draw = eglGetCurrentSurface(EGL_DRAW);
+    EGLSurface cur_read = eglGetCurrentSurface(EGL_READ);
+    const bool debug = egl_debug_enabled();
+
+    if (cur_ctx == context && cur_draw == surface && cur_read == surface) {
+        if (keep_current_ && debug) {
+            std::fprintf(stderr,
+                         "EGL makeCurrent skip site=%s reason=already-current thread=%lu display=%p draw=%p read=%p ctx=%p currentCtx=%p currentDraw=%p currentRead=%p\n",
+                         site ? site : "?",
+                         static_cast<unsigned long>(pthread_self()),
+                         static_cast<void *>(display),
+                         static_cast<void *>(surface),
+                         static_cast<void *>(surface),
+                         static_cast<void *>(context),
+                         static_cast<void *>(cur_ctx),
+                         static_cast<void *>(cur_draw),
+                         static_cast<void *>(cur_read));
+        }
+        return true;
+    }
+
+    if (keep_current_ && debug) {
+        log_make_current_before(site, "bind", display, surface, surface, context);
+    }
+    EGLBoolean ok = eglMakeCurrent(display, surface, surface, context);
+    EGLint error = eglGetError();
+    if (keep_current_ && debug) {
+        log_make_current_after(site, "bind", ok, error);
+    }
+    if (ok != EGL_TRUE) {
+        std::fprintf(stderr,
+                     "eglMakeCurrent FAILED site=%s err=0x%04x(%s) thread=%lu curCtx=%p wantedCtx=%p curDraw=%p curRead=%p wantedSurf=%p\n",
+                     site ? site : "?",
+                     error,
+                     egl_error_name(error),
+                     static_cast<unsigned long>(pthread_self()),
+                     static_cast<void *>(cur_ctx),
+                     static_cast<void *>(context),
+                     static_cast<void *>(cur_draw),
+                     static_cast<void *>(cur_read),
+                     static_cast<void *>(surface));
+        return false;
+    }
+    return ok == EGL_TRUE;
 #else
+    (void)site;
     return false;
 #endif
 }
 
-void EglFbdevVideo::clear_current()
+void EglFbdevVideo::clear_current(const char *site)
 {
 #if CP0_WITH_EGL_FBDEV
     if (!display_) {
         return;
     }
 
-    eglMakeCurrent(static_cast<EGLDisplay>(display_),
-                   EGL_NO_SURFACE,
-                   EGL_NO_SURFACE,
-                   EGL_NO_CONTEXT);
+    EGLDisplay display = static_cast<EGLDisplay>(display_);
+    const bool debug = egl_debug_enabled();
+    if (keep_current_) {
+        if (debug) {
+            std::fprintf(stderr,
+                         "EGL clearCurrent skipped site=%s reason=CP0_PSP_KEEP_EGL_CURRENT thread=%lu currentCtx=%p currentDraw=%p currentRead=%p\n",
+                         site ? site : "?",
+                         static_cast<unsigned long>(pthread_self()),
+                         static_cast<void *>(eglGetCurrentContext()),
+                         static_cast<void *>(eglGetCurrentSurface(EGL_DRAW)),
+                         static_cast<void *>(eglGetCurrentSurface(EGL_READ)));
+        }
+        return;
+    }
+
+    if (debug) {
+        log_make_current_before(site, "clear", display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    }
+    EGLBoolean ok = eglMakeCurrent(display,
+                                   EGL_NO_SURFACE,
+                                   EGL_NO_SURFACE,
+                                   EGL_NO_CONTEXT);
+    EGLint error = eglGetError();
+    if (debug) {
+        log_make_current_after(site, "clear", ok, error);
+    } else if (ok != EGL_TRUE) {
+        std::fprintf(stderr,
+                     "eglMakeCurrent FAILED site=%s err=0x%04x(%s)\n",
+                     site ? site : "?",
+                     error,
+                     egl_error_name(error));
+    }
+#endif
+#if !CP0_WITH_EGL_FBDEV
+    (void)site;
 #endif
 }
 
@@ -334,6 +493,13 @@ retro_proc_address_t EglFbdevVideo::get_proc_address(const char *sym) const
             --fallback_logs_left;
             std::cout << "egl fbdev diag: get_proc_address fallback dlsym("
                       << sym << ")\n";
+        }
+
+        static unsigned miss_logs_left = 40;
+        if (!proc && miss_logs_left > 0) {
+            --miss_logs_left;
+            std::cout << "egl fbdev diag: get_proc_address missing("
+                      << (sym ? sym : "<null>") << ")\n";
         }
     }
 
@@ -370,6 +536,9 @@ void EglFbdevVideo::ensure_explicit_fbo()
     };
 
     auto attach_depth = [this](GLuint *depth_rb) {
+        if (!fbo_depth_) {
+            return;
+        }
         glGenRenderbuffers(1, depth_rb);
         glBindRenderbuffer(GL_RENDERBUFFER, *depth_rb);
         glRenderbufferStorage(GL_RENDERBUFFER,
@@ -548,7 +717,7 @@ void EglFbdevVideo::destroy_explicit_fbo()
 void EglFbdevVideo::run_gl_clear_readback_test()
 {
 #if CP0_WITH_EGL_FBDEV
-    if (!fbdev_ || !make_current() || readback_rgba8888_.empty()) {
+    if (!fbdev_ || !make_current("clear-readback-test") || readback_rgba8888_.empty()) {
         return;
     }
 
@@ -611,7 +780,7 @@ void EglFbdevVideo::run_gl_clear_readback_test()
 void EglFbdevVideo::present(unsigned width, unsigned height)
 {
 #if CP0_WITH_EGL_FBDEV
-    if (!initialized_ || !fbdev_ || !make_current()) {
+    if (!initialized_ || !fbdev_ || !make_current("video-refresh-present")) {
         return;
     }
 
@@ -628,7 +797,10 @@ void EglFbdevVideo::present(unsigned width, unsigned height)
     }
 
     if (!logged_first_present_) {
-        std::cout << "egl fbdev: first HW frame " << width << "x" << height << "\n";
+        std::cout << "egl fbdev: first HW frame " << width << "x" << height
+                  << " readback=RGBA8888->RGB565"
+                  << " fb=" << fbdev_->width() << "x" << fbdev_->height()
+                  << "\n";
         logged_first_present_ = true;
     }
 

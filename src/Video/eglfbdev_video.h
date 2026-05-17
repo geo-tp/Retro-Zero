@@ -14,16 +14,17 @@ class EglFbdevVideo {
 public:
     // Creates an EGL GLES2 context and explicit FBO sized for the core output.
     bool init(FbdevVideo *fbdev, unsigned width, unsigned height,
-              bool depth, bool stencil);
+              bool depth, bool stencil, bool keep_current = false);
 
     // Destroys GL/EGL resources.
     void shutdown();
 
     bool available() const { return initialized_; }
+    bool keep_current() const { return keep_current_; }
 
     // Makes or clears the context current for core rendering/readback.
-    bool make_current();
-    void clear_current();
+    bool make_current(const char *site = "unknown");
+    void clear_current(const char *site = "clear_current");
 
     // Libretro hardware-render callbacks.
     uintptr_t current_framebuffer() const;
@@ -43,6 +44,7 @@ private:
     unsigned height_ = 0;
     bool logged_first_present_ = false;
     bool explicit_fbo_ = true;
+    bool keep_current_ = false;
     std::vector<uint16_t> readback_rgb565_;
     std::vector<uint32_t> readback_rgba8888_;
 

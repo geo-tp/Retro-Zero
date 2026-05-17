@@ -181,6 +181,11 @@ bool is_atomiswave_core(const char *env_core)
          std::strcmp(env_core, "CP0_CORE_NAOMI_ATOMISWAVE") == 0);
 }
 
+bool is_psp_core(const char *env_core)
+{
+    return env_core && std::strcmp(env_core, "CP0_CORE_PSP") == 0;
+}
+
 bool content_dir_looks_like_naomi(const std::string &content_dir)
 {
     return string_contains_case_insensitive(content_dir, "/naomi")
@@ -465,6 +470,14 @@ bool prepare_runtime_bios_for_core(
             return false;
         }
 
+        return true;
+    }
+
+    if (is_psp_core(env_core)) {
+        system_dir = kRetroZeroSystemRoot;
+        std::cout << "PPSSPP system dir forced: " << system_dir
+                  << " (place PPSSPP assets under " << system_dir
+                  << "/PPSSPP if your core build requires them)\n";
         return true;
     }
 

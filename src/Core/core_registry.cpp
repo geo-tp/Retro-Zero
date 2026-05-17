@@ -145,6 +145,15 @@ const std::vector<CoreConfig>& CoreRegistry::all()
             "mame", true, false
         },
         {
+            "psp", "Sony PSP", "PSP", "CP0_CORE_PSP",
+            "/home/pi/retrozero/cores/ppsspp_libretro.so",
+            "https://raw.githubusercontent.com/geo-tp/Retro-Zero/main/emulators/ppsspp_libretro.so.zip",
+            {".iso", ".cso", ".pbp", ".elf", ".prx", ".chd"},
+            0x2F78FF, false,
+            "CP0_ROM_DIR_PSP", "/home/pi/roms/psp",
+            "psp", true, false
+        },
+        {
             "ps1", "PlayStation", "PS1", "CP0_CORE_PS1",
             "/home/pi/retrozero/cores/pcsx_rearmed_libretro.so",
             "https://raw.githubusercontent.com/geo-tp/Retro-Zero/main/emulators/pcsx_rearmed_libretro.so.zip",
@@ -317,6 +326,34 @@ bool CoreRegistry::isNeoGeoCore(const char* envCore)
 
     if (const CoreConfig* cfg = findByEnvCore(envCore ? envCore : "")) {
         return cfg->id && std::strcmp(cfg->id, "neogeo") == 0;
+    }
+
+    return false;
+}
+
+// Identifies the dedicated PSP profile for PPSSPP-specific GLES/options handling.
+bool CoreRegistry::isPspCore(const char* envCore)
+{
+    if (envCore && std::strcmp(envCore, "CP0_CORE_PSP") == 0) {
+        return true;
+    }
+
+    if (const CoreConfig* cfg = findByEnvCore(envCore ? envCore : "")) {
+        return cfg->id && std::strcmp(cfg->id, "psp") == 0;
+    }
+
+    return false;
+}
+
+// Identifies the dedicated Nintendo 64 profile for HW render/input/load handling.
+bool CoreRegistry::isN64Core(const char* envCore)
+{
+    if (envCore && std::strcmp(envCore, "CP0_CORE_N64") == 0) {
+        return true;
+    }
+
+    if (const CoreConfig* cfg = findByEnvCore(envCore ? envCore : "")) {
+        return cfg->id && std::strcmp(cfg->id, "n64") == 0;
     }
 
     return false;

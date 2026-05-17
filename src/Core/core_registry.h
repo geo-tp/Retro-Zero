@@ -33,6 +33,12 @@ public:
 
     // Returns true when the selected core is the dedicated Neo Geo profile.
     static bool isNeoGeoCore(const char* envCore);
+
+    // Returns true when the selected core is the PPSSPP / PSP profile.
+    static bool isPspCore(const char* envCore);
+
+    // Returns true when the selected core is the Nintendo 64 profile.
+    static bool isN64Core(const char* envCore);
 };
 
 #endif // CP0_CORE_REGISTRY_H

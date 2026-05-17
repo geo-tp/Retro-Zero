@@ -29,7 +29,7 @@ bool prepare_loaded_retro_game(
     const bool registry_path_only =
         CoreRegistry::shouldLoadByPathOnly(rom_path ? rom_path : "", selected_env_core);
     const bool n64_memory_load =
-        selected_env_core && std::strcmp(selected_env_core, "CP0_CORE_N64") == 0 &&
+        CoreRegistry::isN64Core(selected_env_core) &&
         !system_info.need_fullpath;
     const bool load_by_path_only =
         system_info.need_fullpath || (registry_path_only && !n64_memory_load);

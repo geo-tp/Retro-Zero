@@ -1,5 +1,6 @@
 #include "retro_frontend.h"
 
+#include "core_registry.h"
 #include "libretro_core.h"
 #include "../Utils/bios_utils.h"
 #include "../Utils/env_utils.h"
@@ -117,8 +118,28 @@ unsigned default_hw_height()
 
 uintptr_t RETRO_CALLCONV get_current_framebuffer_cb()
 {
-    retro_frontend_context().egl_video.make_current();
-    return retro_frontend_context().egl_video.current_framebuffer();
+    auto &frontend = retro_frontend_context();
+
+    // PPSSPP's GLRenderManager may ask this from a worker/render thread.
+    // In keep-current mode, the EGL context belongs to the video callback
+    // thread, so this callback must only return the cached FBO name.
+    if (frontend.egl_video.keep_current()) {
+        const uintptr_t fb = frontend.egl_video.current_framebuffer();
+
+        if (env_enabled_value(std::getenv("CP0_EGL_DEBUG"))) {
+            std::fprintf(stderr,
+                         "hw render: get_current_framebuffer keep-current returning fb=%lu without eglMakeCurrent\n",
+                         static_cast<unsigned long>(fb));
+        }
+
+        return fb;
+    }
+
+    if (!frontend.egl_video.make_current("get-current-framebuffer")) {
+        return 0;
+    }
+
+    return frontend.egl_video.current_framebuffer();
 }
 
 retro_proc_address_t RETRO_CALLCONV get_proc_address_cb(const char *sym)
@@ -167,14 +188,29 @@ bool init_hw_render_context(retro_hw_render_callback *requested)
 
     unsigned width = env_u32_or("CP0_HW_RENDER_WIDTH", default_hw_width());
     unsigned height = env_u32_or("CP0_HW_RENDER_HEIGHT", default_hw_height());
-    if (retro_frontend_context().active_env_core == "CP0_CORE_N64") {
+    const bool is_psp =
+        CoreRegistry::isPspCore(retro_frontend_context().active_env_core.c_str());
+    if (CoreRegistry::isN64Core(retro_frontend_context().active_env_core.c_str())) {
         width = env_u32_or("CP0_N64_INTERNAL_WIDTH", width);
         height = env_u32_or("CP0_N64_INTERNAL_HEIGHT", height);
     } else if (is_flycast_env_core(retro_frontend_context().active_env_core.c_str())) {
         width = env_u32_or("CP0_DC_INTERNAL_WIDTH", 320);
         height = env_u32_or("CP0_DC_INTERNAL_HEIGHT", 240);
+    } else if (is_psp) {
+        width = env_u32_or("CP0_PSP_INTERNAL_WIDTH", 480);
+        height = env_u32_or("CP0_PSP_INTERNAL_HEIGHT", 272);
     }
-    if (!retro_frontend_context().egl_video.init(&retro_frontend_context().video, width, height, requested->depth, requested->stencil)) {
+    const bool keep_egl_current =
+        is_psp && env_enabled_value(std::getenv("CP0_PSP_KEEP_EGL_CURRENT"));
+    if (keep_egl_current) {
+        std::cout << "hw render PSP: CP0_PSP_KEEP_EGL_CURRENT=1, no EGL_NO_CONTEXT ping-pong during runtime\n";
+    }
+    if (!retro_frontend_context().egl_video.init(&retro_frontend_context().video,
+                                                width,
+                                                height,
+                                                requested->depth,
+                                                requested->stencil,
+                                                keep_egl_current)) {
         return false;
     }
 
@@ -187,7 +223,11 @@ bool init_hw_render_context(retro_hw_render_callback *requested)
     retro_frontend_context().hw_frame_width = width;
     retro_frontend_context().hw_frame_height = height;
 
-    std::cout << "hw render: GLES2 context created, reset deferred\n";
+    std::cout << "hw render: GLES2 context created "
+              << width << "x" << height
+              << " depth=" << (requested->depth ? "yes" : "no")
+              << " stencil=" << (requested->stencil ? "yes" : "no")
+              << ", reset deferred\n";
     return true;
 }
 
@@ -198,7 +238,7 @@ void reset_hw_render_context_if_needed()
         return;
     }
 
-    if (!retro_frontend_context().egl_video.make_current()) {
+    if (!retro_frontend_context().egl_video.make_current("context-reset")) {
         std::cerr << "hw render: failed to make EGL context current for reset\n";
         return;
     }
@@ -210,9 +250,12 @@ void reset_hw_render_context_if_needed()
     retro_frontend_context().hw_context_reset_done = true;
     retro_frontend_context().hw_render_ready = true;
 
-    if (std::getenv("CP0_HW_CONTEXT_CORE_THREAD")) {
-        retro_frontend_context().egl_video.clear_current();
+    if (env_enabled_value(std::getenv("CP0_HW_CONTEXT_CORE_THREAD")) &&
+        !retro_frontend_context().egl_video.keep_current()) {
+        retro_frontend_context().egl_video.clear_current("context-reset-release-core-thread");
         std::cout << "hw render: context reset done; released for core thread\n";
+    } else if (env_enabled_value(std::getenv("CP0_HW_CONTEXT_CORE_THREAD"))) {
+        std::cout << "hw render: context reset done; kept current due to CP0_PSP_KEEP_EGL_CURRENT\n";
     } else {
         std::cout << "hw render: context reset done; kept on main thread\n";
     }
@@ -239,7 +282,16 @@ bool environment_cb(unsigned cmd, void *data)
 #endif
     case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER: {
         auto *preferred = static_cast<unsigned *>(data);
-        if (preferred) *preferred = RETRO_HW_CONTEXT_OPENGLES2;
+        if (preferred) {
+            if (CoreRegistry::isPspCore(retro_frontend_context().active_env_core.c_str())) {
+                // PPSSPP's GLES2 libretro path treats DUMMY as "pick the GL path",
+                // then requests RETRO_HW_CONTEXT_OPENGLES2 in SET_HW_RENDER.
+                *preferred = RETRO_HW_CONTEXT_DUMMY;
+                std::cout << "hw render preferred: PSP/PPSSPP -> DUMMY probe for GLES2 path\n";
+            } else {
+                *preferred = RETRO_HW_CONTEXT_OPENGLES2;
+            }
+        }
         return true;
     }
     case RETRO_ENVIRONMENT_SET_ROTATION: {

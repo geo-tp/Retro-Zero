@@ -17,10 +17,52 @@
 
 #include "../Audio/alsa_audio.h"
 #include "../Utils/bios_utils.h"
+#include "../Utils/env_utils.h"
 #include "../Utils/file_utils.h"
 #if CP0_WITH_LVGL
 #include "../UI/app_ui.h"
 #endif
+
+namespace {
+
+void set_env_default(const char *name, const char *value)
+{
+    const char *current = std::getenv(name);
+    if (current && current[0]) {
+        return;
+    }
+    setenv(name, value, 0);
+}
+
+const char *env_value_or_unset(const char *name)
+{
+    const char *value = std::getenv(name);
+    return value && value[0] ? value : "<unset>";
+}
+
+void apply_psp_runtime_defaults(const char *selected_env_core)
+{
+    if (!CoreRegistry::isPspCore(selected_env_core)) {
+        return;
+    }
+
+    set_env_default("CP0_PSP_KEEP_EGL_CURRENT", "1");
+    set_env_default("CP0_HW_CONTEXT_CORE_THREAD", "0");
+    set_env_default("CP0_PSP_VC4_LIMIT_GL_BUFFERS", "1");
+    set_env_default("CP0_PSP_VC4_SMALL_BATCHES", "1");
+
+    std::cout << "psp defaults: keep_egl_current="
+              << env_value_or_unset("CP0_PSP_KEEP_EGL_CURRENT")
+              << " hw_context_core_thread="
+              << env_value_or_unset("CP0_HW_CONTEXT_CORE_THREAD")
+              << " vc4_limit_gl_buffers="
+              << env_value_or_unset("CP0_PSP_VC4_LIMIT_GL_BUFFERS")
+              << " vc4_small_batches="
+              << env_value_or_unset("CP0_PSP_VC4_SMALL_BATCHES")
+              << " (env overrides respected)\n";
+}
+
+}
 
 // Runs the frontend: select content, configure Libretro, execute frames, and return to UI when requested.
 int run_retro_runtime(int argc, char **argv)
@@ -60,6 +102,12 @@ int run_retro_runtime(int argc, char **argv)
 
         const char *selected_env_core = std::getenv("CP0_SELECTED_ENV_CORE");
         std::string selected_env_core_str = selected_env_core ? selected_env_core : "";
+        std::cout << "runtime: selected env core="
+                  << (selected_env_core ? selected_env_core : "<unset>")
+                  << " core_path=" << (core_path ? core_path : "<null>")
+                  << " rom_path=" << (rom_path ? rom_path : "<null>")
+                  << "\n";
+        apply_psp_runtime_defaults(selected_env_core);
         configure_core_option_overrides(selected_env_core, rom_path);
         reset_frontend_state_for_content(selected_env_core_str);
 
@@ -202,7 +250,8 @@ int run_retro_runtime(int argc, char **argv)
 
         if (selected_env_core &&
             (is_flycast_env_core(selected_env_core) ||
-             std::strcmp(selected_env_core, "CP0_CORE_N64") == 0)) {
+             CoreRegistry::isPspCore(selected_env_core) ||
+             CoreRegistry::isN64Core(selected_env_core))) {
 
             std::cout << "input: forcing controller ports joypad,none,none,none for "
                       << selected_env_core << "\n";
@@ -250,9 +299,19 @@ int run_retro_runtime(int argc, char **argv)
 
         frontend.quit = false;
 
+        if (frontend.hw_render_ready && frontend.egl_video.keep_current()) {
+            std::cout << "hw render PSP: main loop will not eglMakeCurrent before retro_run; present/readback stays in video callback\n";
+        }
+
         while (!frontend.quit) {
-            if (frontend.hw_render_ready && !std::getenv("CP0_HW_CONTEXT_CORE_THREAD")) {
-                frontend.egl_video.make_current();
+            if (frontend.hw_render_ready &&
+                !frontend.egl_video.keep_current() &&
+                !env_enabled_value(std::getenv("CP0_HW_CONTEXT_CORE_THREAD"))) {
+                if (!frontend.egl_video.make_current("runtime-before-retro-run")) {
+                    std::cerr << "hw render: skipping retro_run because EGL context is not current\n";
+                    frame_pacer.wait_for_next_frame();
+                    continue;
+                }
             }
 
             core.retro_run();

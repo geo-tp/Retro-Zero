@@ -1,5 +1,6 @@
 #include "retro_frontend.h"
 
+#include "core_registry.h"
 #include "../Utils/bios_utils.h"
 #include "../Utils/env_utils.h"
 
@@ -21,7 +22,9 @@ void video_cb(const void *data, unsigned width, unsigned height, size_t pitch)
         if (width) retro_frontend_context().hw_frame_width = width;
         if (height) retro_frontend_context().hw_frame_height = height;
         if (retro_frontend_context().hw_render_ready) {
-            retro_frontend_context().egl_video.present(retro_frontend_context().hw_frame_width, retro_frontend_context().hw_frame_height);
+            retro_frontend_context().egl_video.present(
+                retro_frontend_context().hw_frame_width,
+                retro_frontend_context().hw_frame_height);
         }
         return;
     }
@@ -78,7 +81,7 @@ int16_t rotated_joypad_state(unsigned id)
     return retro_frontend_context().input.joypad_state(rotated_dpad_id(id));
 }
 
-// --- Keyboard → left analog stick, activé par défaut pour N64/DC ---
+// --- Keyboard → left analog stick, activé par défaut pour N64/DC/PSP ---
 bool keyboard_to_left_analog_enabled()
 {
     const char *env = std::getenv("CP0_KEYBOARD_ANALOG");
@@ -93,7 +96,8 @@ bool keyboard_to_left_analog_enabled()
     }
 
     // Activé par défaut, sans build flag ni env var.
-    return retro_frontend_context().active_env_core == "CP0_CORE_N64" ||
+    return CoreRegistry::isN64Core(retro_frontend_context().active_env_core.c_str()) ||
+           CoreRegistry::isPspCore(retro_frontend_context().active_env_core.c_str()) ||
            is_flycast_env_core(retro_frontend_context().active_env_core.c_str());
 }
 
@@ -134,37 +138,7 @@ int16_t keyboard_left_analog_state(unsigned index, unsigned id)
     }
 
     const int16_t analog_max = keyboard_analog_strength();
-
-    // Pour le moment on recycle les directions RetroPad.
-    // Si tu ajoutes les binds dédiés dans EvdevInput, remplace cette partie
-    // par retro_frontend_context().input.left_analog_state(index, id, analog_max).
-    const bool left  = rotated_joypad_state(RETRO_DEVICE_ID_JOYPAD_LEFT)  != 0;
-    const bool right = rotated_joypad_state(RETRO_DEVICE_ID_JOYPAD_RIGHT) != 0;
-    const bool up    = rotated_joypad_state(RETRO_DEVICE_ID_JOYPAD_UP)    != 0;
-    const bool down  = rotated_joypad_state(RETRO_DEVICE_ID_JOYPAD_DOWN)  != 0;
-
-    switch (id) {
-    case RETRO_DEVICE_ID_ANALOG_X:
-        if (left && !right) {
-            return static_cast<int16_t>(-analog_max);
-        }
-        if (right && !left) {
-            return analog_max;
-        }
-        return 0;
-
-    case RETRO_DEVICE_ID_ANALOG_Y:
-        if (up && !down) {
-            return static_cast<int16_t>(-analog_max);
-        }
-        if (down && !up) {
-            return analog_max;
-        }
-        return 0;
-
-    default:
-        return 0;
-    }
+    return retro_frontend_context().input.left_analog_state(index, id, analog_max);
 }
 
 // Polls evdev input once per Libretro frame.

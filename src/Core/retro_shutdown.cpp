@@ -39,7 +39,7 @@ void shutdown_retro_session(
 
     if (frontend.hw_render.context_destroy) {
         std::cout << "[SHUTDOWN] context_destroy: begin\n";
-        frontend.egl_video.make_current();
+        frontend.egl_video.make_current("shutdown-context-destroy");
         frontend.hw_render.context_destroy();
         frontend.hw_render.context_destroy = nullptr;
         std::cout << "[SHUTDOWN] context_destroy: end\n";

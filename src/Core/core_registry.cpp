@@ -151,7 +151,7 @@ const std::vector<CoreConfig>& CoreRegistry::all()
             {".iso", ".cso", ".pbp", ".elf", ".prx", ".chd"},
             0x2F78FF, false,
             "CP0_ROM_DIR_PSP", "/home/pi/roms/psp",
-            "psp", true, false
+            "ppsspp", true, false
         },
         {
             "ps1", "PlayStation", "PS1", "CP0_CORE_PS1",

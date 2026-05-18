@@ -62,6 +62,45 @@ void apply_psp_runtime_defaults(const char *selected_env_core)
               << " (env overrides respected)\n";
 }
 
+bool prepare_psp_memstick_layout(
+    const char *selected_env_core,
+    const char *core_path,
+    const std::string &save_dir
+)
+{
+    const bool is_ppsspp_core =
+        CoreRegistry::isPspCore(selected_env_core) ||
+        (core_path && std::string(core_path).find("ppsspp") != std::string::npos);
+    if (!is_ppsspp_core) {
+        return true;
+    }
+    if (save_dir.empty()) {
+        std::cerr << "psp saves: save directory is empty\n";
+        return false;
+    }
+
+    const char *subdirs[] = {
+        "PSP",
+        "PSP/SAVEDATA",
+        "PSP/SYSTEM",
+        "PSP/SYSTEM/CACHE",
+        "PSP/GAME",
+        "PSP/PPSSPP_STATE",
+    };
+
+    for (const char *subdir : subdirs) {
+        const std::string path = join_path(save_dir, subdir);
+        if (!ensure_dir_exists(path)) {
+            std::cerr << "psp saves: failed to prepare " << path << "\n";
+            return false;
+        }
+    }
+
+    std::cout << "psp saves: prepared PPSSPP memstick layout under "
+              << save_dir << "\n";
+    return true;
+}
+
 }
 
 // Runs the frontend: select content, configure Libretro, execute frames, and return to UI when requested.
@@ -153,6 +192,9 @@ int run_retro_runtime(int argc, char **argv)
         } else {
             std::cerr << "save dir: fallback to content directory\n";
             frontend.save_dir = frontend.content_dir;
+        }
+        if (!prepare_psp_memstick_layout(selected_env_core, core_path, frontend.save_dir)) {
+            return 1;
         }
 
         if (const char *refresh_env = std::getenv("CP0_TARGET_REFRESH_HZ")) {

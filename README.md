@@ -1,6 +1,6 @@
 # Retro-Zero
 
-### **In Progress**
+![Retro Zero running on Cardputer Zero](retro_zero_01.jpg)
 
 Retro-Zero is a  Libretro-based emulator frontend designed for the **Cardputer Zero**.
 
@@ -53,12 +53,6 @@ For example:
 /home/pi/retrozero/cores/snes9x_libretro.so
 /home/pi/retrozero/cores/mupen64plus_libretro.so
 /home/pi/retrozero/cores/ppsspp_libretro.so
-```
-
-The PPSSPP core is patched for the Cardputer Zero / VC4 / GLES2 target. It uses OpenGL ES 2.0 hardware rendering, conservative VC4 buffer safeguards, and does not require a PSP BIOS. PPSSPP assets, when needed by the core build, should be placed in:
-
-```txt
-/home/pi/retrozero/system/PPSSPP
 ```
 
 ## ROM directories

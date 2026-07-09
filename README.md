@@ -86,6 +86,15 @@ By default, ROMs are expected under:
 
 You can use the **ROM Upload** features to directly import ROM to your device.
 
+## Controls
+You can rebind the keys to external USB or Bluetooth controllers, making the controls more flexible.
+
+[Cardputer-Accessories repo](https://github.com/AndreiVladescu/Cardputer-Accessories) to get the 3D model for D-Pad that you can put on the Cardputer's keys. 
+
+[![A render of the 3D DPAD model](https://github.com/geo-tp/Cardputer-Game-Station-Emulators/raw/xip_load/images/cardputer_gamepad_render.jpg
+)](https://github.com/AndreiVladescu/Cardputer-Accessories)
+
+
 ## Saves
 
 Save files are stored under:

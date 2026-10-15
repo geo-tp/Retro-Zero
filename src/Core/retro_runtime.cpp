@@ -204,6 +204,7 @@ int run_retro_runtime(int argc, char **argv)
             }
         }
 
+        std::cout << "runtime: opening game framebuffer /dev/fb0\n";
         if (!frontend.video.init("/dev/fb0")) {
             return 1;
         }
@@ -227,6 +228,7 @@ int run_retro_runtime(int argc, char **argv)
             }
         }
 
+        std::cout << "runtime: initializing game input\n";
         frontend.input.init();
         const bool two_button_mode =
             CoreRegistry::isTwoButtonMode(selected_env_core, rom_path ? rom_path : "");
@@ -240,6 +242,7 @@ int run_retro_runtime(int argc, char **argv)
         LibretroCore core;
         core.skip_dlclose = is_flycast_env_core(selected_env_core);
 
+        std::cout << "runtime: loading core " << core_path << "\n";
         if (!core.load(core_path)) {
             frontend.input.shutdown();
             frontend.video.shutdown();
@@ -253,6 +256,7 @@ int run_retro_runtime(int argc, char **argv)
         core.retro_set_input_poll(input_poll_cb);
         core.retro_set_input_state(input_state_cb);
 
+        std::cout << "runtime: retro_init\n";
         core.retro_init();
 
         retro_system_info system_info {};
@@ -281,6 +285,7 @@ int run_retro_runtime(int argc, char **argv)
             log_runtime_bios_state_for_core(selected_env_core, "before retro_load_game");
         }
 
+        std::cout << "runtime: retro_load_game\n";
         if (!core.retro_load_game(&loaded_game.info)) {
             std::cerr << "retro_load_game failed\n";
             core.retro_deinit();
@@ -329,13 +334,17 @@ int run_retro_runtime(int argc, char **argv)
 
         const bool use_ring_buffer = !is_neogeo_core;
 
+        std::cout << "runtime: initializing game audio\n";
         if (!frontend.audio.init(av.timing.sample_rate, use_ring_buffer)) {
             std::cerr << "audio: disabled; video/input will continue\n";
         } else if (std::getenv("CP0_AUDIO_TEST")) {
             frontend.audio.play_test_tone();
         }
 
-        auto profile_last = std::chrono::steady_clock::now();
+        const bool profile_enabled = env_enabled_value(std::getenv("CP0_PROFILE"));
+        auto profile_last = profile_enabled
+            ? std::chrono::steady_clock::now()
+            : std::chrono::steady_clock::time_point{};
         uint64_t profile_frames = 0;
         bool return_to_file_picker = false;
 
@@ -345,6 +354,7 @@ int run_retro_runtime(int argc, char **argv)
             std::cout << "hw render PSP: main loop will not eglMakeCurrent before retro_run; present/readback stays in video callback\n";
         }
 
+        std::cout << "runtime: starting emulation loop\n";
         while (!frontend.quit) {
             if (frontend.hw_render_ready &&
                 !frontend.egl_video.keep_current() &&
@@ -357,20 +367,22 @@ int run_retro_runtime(int argc, char **argv)
             }
 
             core.retro_run();
-            ++profile_frames;
 
             frame_pacer.wait_for_next_frame();
 
-            auto profile_now = std::chrono::steady_clock::now();
-            std::chrono::duration<double> profile_elapsed = profile_now - profile_last;
-            if (profile_elapsed.count() >= 1.0) {
-                std::cout << "profile: fps="
-                          << (static_cast<double>(profile_frames) / profile_elapsed.count())
-                          << " hw=" << frontend.hw_frame_width << "x" << frontend.hw_frame_height
-                          << " audio=" << (frontend.audio.enabled() ? "on" : "off")
-                          << "\n";
-                profile_last = profile_now;
-                profile_frames = 0;
+            if (profile_enabled) {
+                ++profile_frames;
+                const auto profile_now = std::chrono::steady_clock::now();
+                const std::chrono::duration<double> profile_elapsed = profile_now - profile_last;
+                if (profile_elapsed.count() >= 1.0) {
+                    std::cout << "profile: fps="
+                              << (static_cast<double>(profile_frames) / profile_elapsed.count())
+                              << " hw=" << frontend.hw_frame_width << "x" << frontend.hw_frame_height
+                              << " audio=" << (frontend.audio.enabled() ? "on" : "off")
+                              << "\n";
+                    profile_last = profile_now;
+                    profile_frames = 0;
+                }
             }
 
             int volume_steps = frontend.input.consume_volume_steps();

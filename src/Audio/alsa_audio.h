@@ -12,19 +12,22 @@
 
 #include "audio_ringbuffer.h"
 
+struct pa_simple;
+
 // Applies the boot-time ES8388 mixer defaults used by the Cardputer Zero.
 void apply_boot_audio_mixer();
 
-// ALSA playback backend used by Libretro audio callbacks.
+// Shared PipeWire/PulseAudio playback, with direct ALSA as a fallback.
+// The historical class name is retained for existing frontend callers.
 class AlsaAudio {
 public:
-    // Opens ALSA and prepares optional threaded/ring-buffered playback.
+    // Opens the audio server or ALSA and prepares optional threaded playback.
     bool init(double sample_rate, bool use_ring_buffer = true);
 
-    // Stops the audio thread and closes the ALSA PCM device.
+    // Stops the audio thread and closes the server stream or ALSA PCM device.
     void shutdown();
 
-    // Writes interleaved stereo frames produced by retro_audio_sample_batch.
+    // Writes interleaved stereo frames; silently consumes them when disabled.
     size_t write_batch(const int16_t *data, size_t frames);
 
     // Writes one stereo frame produced by retro_audio_sample.
@@ -33,7 +36,7 @@ public:
     // Emits a short tone for device/audio-route diagnostics.
     void play_test_tone(unsigned milliseconds = 800);
 
-    bool enabled() const { return pcm_ != nullptr; }
+    bool enabled() const { return (pulse_ || pcm_) && !output_failed_.load(); }
 
     // Adjusts and reports the software gain applied before ALSA output.
     void adjust_gain(double delta);
@@ -43,7 +46,9 @@ private:
     bool use_ring_buffer_ = true;
 
     bool open_device(const char *device, unsigned requested_rate);
+    bool open_pulse(unsigned requested_rate);
     bool configure(unsigned requested_rate);
+    bool write_output(const int16_t *data, size_t frames);
 
     size_t convert_frames(
         const int16_t *data,
@@ -58,6 +63,8 @@ private:
     void stop_audio_thread();
 
     snd_pcm_t *pcm_ = nullptr;
+    pa_simple *pulse_ = nullptr;
+    std::atomic<bool> output_failed_{false};
 
     unsigned input_rate_ = 0;
     unsigned rate_ = 0;

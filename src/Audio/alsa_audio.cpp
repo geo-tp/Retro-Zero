@@ -8,6 +8,9 @@
 #include <string>
 #include <vector>
 
+#include <pulse/error.h>
+#include <pulse/simple.h>
+
 // Sets the ES8388 output mixer to a known boot volume.
 void apply_boot_audio_mixer()
 {
@@ -35,16 +38,14 @@ void AlsaAudio::start_audio_thread()
         return;
     }
 
+    const size_t buffer_frames = std::max<size_t>(2048, rate_ / 5);
+    ring_buffer_ = std::make_unique<AudioRingBuffer>(buffer_frames, channels_);
     audio_thread_running_ = true;
     audio_thread_ = std::thread(&AlsaAudio::audio_thread_func, this);
 }
 
 void AlsaAudio::stop_audio_thread()
 {
-    if (!audio_thread_running_.load()) {
-        return;
-    }
-
     audio_thread_running_ = false;
 
     if (audio_thread_.joinable()) {
@@ -55,7 +56,7 @@ void AlsaAudio::stop_audio_thread()
 void AlsaAudio::audio_thread_func()
 {
     constexpr size_t kBatchFrames = 512;
-    std::vector<int16_t> buffer(kBatchFrames * 2, 0);
+    std::vector<int16_t> buffer(kBatchFrames * channels_, 0);
 
     while (audio_thread_running_.load()) {
         size_t frames = ring_buffer_
@@ -67,33 +68,9 @@ void AlsaAudio::audio_thread_func()
             frames = kBatchFrames;
         }
 
-        size_t remaining = frames;
-        int16_t *ptr = buffer.data();
-
-        while (remaining > 0 && audio_thread_running_.load()) {
-            snd_pcm_sframes_t written = snd_pcm_writei(pcm_, ptr, remaining);
-
-            if (written < 0) {
-                if (written == -EPIPE) {
-                    snd_pcm_prepare(pcm_);
-                    continue;
-                }
-
-                if (written == -EINTR) {
-                    continue;
-                }
-
-                std::cerr << "alsa: write failed: "
-                          << snd_strerror(written) << "\n";
-                break;
-            }
-
-            if (written == 0) {
-                break;
-            }
-
-            ptr += written * 2;
-            remaining -= static_cast<size_t>(written);
+        if (!write_output(buffer.data(), frames)) {
+            // shutdown() still joins this thread after an output failure.
+            audio_thread_running_ = false;
         }
     }
 }
@@ -188,9 +165,11 @@ bool env_enabled(const char *name)
 }
 }
 
-// Opens ALSA using the best available output device and starts threaded playback when enabled.
+// Connects to the stock audio server first; explicit ALSA overrides take priority.
 bool AlsaAudio::init(double sample_rate, bool use_ring_buffer)
 {
+    shutdown();
+    output_failed_ = false;
     unsigned requested_rate = sample_rate > 0.0
         ? static_cast<unsigned>(sample_rate + 0.5)
         : 48000;
@@ -202,13 +181,10 @@ bool AlsaAudio::init(double sample_rate, bool use_ring_buffer)
     conversion_buffer_.clear();
 
     use_ring_buffer_ = use_ring_buffer;
-    if (use_ring_buffer_) {
-        // Taille du buffer : 200 ms par défaut
-        size_t buffer_frames = static_cast<size_t>(rate_ > 0 ? rate_ * 0.2 : 48000 * 0.2);
-        if (buffer_frames < 2048) buffer_frames = 2048;
-        ring_buffer_ = std::make_unique<AudioRingBuffer>(buffer_frames, 2);
-    } else {
-        ring_buffer_.reset();
+    const char *alsa_override = std::getenv("CP0_ALSA_DEVICE");
+    if ((!alsa_override || !alsa_override[0]) && open_pulse(requested_rate)) {
+        if (use_ring_buffer_) start_audio_thread();
+        return true;
     }
 
 
@@ -226,10 +202,36 @@ bool AlsaAudio::init(double sample_rate, bool use_ring_buffer)
         }
     }
 
-    std::cerr << "alsa: no playback device opened (muted). "
+    std::cerr << "audio: no server or playback device opened (muted). "
               << "Try CP0_ALSA_DEVICE=plughw:CARD=<id>,DEV=0\n";
     ring_buffer_.reset();
     return false;
+}
+
+bool AlsaAudio::open_pulse(unsigned requested_rate)
+{
+    const pa_sample_spec format {PA_SAMPLE_S16LE, requested_rate, 2};
+    // Match the previous ALSA target: 100 ms of server buffering, 20 ms writes.
+    const pa_buffer_attr buffering {
+        UINT32_MAX,
+        static_cast<uint32_t>(pa_usec_to_bytes(100000, &format)),
+        UINT32_MAX,
+        static_cast<uint32_t>(pa_usec_to_bytes(20000, &format)),
+        UINT32_MAX,
+    };
+    int error = 0;
+    pulse_ = pa_simple_new(nullptr, "Retro-Zero", PA_STREAM_PLAYBACK, nullptr,
+                           "Emulation", &format, nullptr, &buffering, &error);
+    if (!pulse_) {
+        std::cerr << "pulse: connection failed: " << pa_strerror(error)
+                  << "; trying ALSA\n";
+        return false;
+    }
+    rate_ = requested_rate;
+    channels_ = 2;
+    std::cout << "pulse: connected to audio server S16_LE 2ch " << rate_
+              << " Hz gain=" << gain_ << " (native client, no ALSA plugin)\n";
+    return true;
 }
 
 bool AlsaAudio::open_device(const char *device, unsigned requested_rate)
@@ -243,7 +245,12 @@ bool AlsaAudio::open_device(const char *device, unsigned requested_rate)
     }
 
     if (!configure(requested_rate)) {
-        shutdown();
+        // A failed candidate must not reset the input rate or gain needed by
+        // the next candidate. Playback has not started yet.
+        snd_pcm_close(pcm_);
+        pcm_ = nullptr;
+        rate_ = 0;
+        channels_ = 0;
         return false;
     }
 
@@ -327,10 +334,12 @@ void AlsaAudio::adjust_gain(double delta)
 void AlsaAudio::shutdown()
 {
     stop_audio_thread();
+    sample_accum_.clear();
+    if (pulse_) {
+        pa_simple_free(pulse_);
+        pulse_ = nullptr;
+    }
     if (pcm_) {
-        if (!sample_accum_.empty()) {
-            sample_accum_.clear();
-        }
         snd_pcm_drop(pcm_);
         snd_pcm_close(pcm_);
         pcm_ = nullptr;
@@ -343,12 +352,47 @@ void AlsaAudio::shutdown()
     conversion_buffer_.clear();
 }
 
+// Serial output shared by the worker and direct mode (never used concurrently).
+bool AlsaAudio::write_output(const int16_t *data, size_t frames)
+{
+    if (pulse_) {
+        int error = 0;
+        if (pa_simple_write(pulse_, data, frames * channels_ * sizeof(int16_t), &error) < 0) {
+            std::cerr << "pulse: write failed: " << pa_strerror(error) << "; audio disabled\n";
+            output_failed_ = true;
+            return false;
+        }
+        return true;
+    }
+
+    size_t remaining = frames;
+    while (remaining > 0 && (!use_ring_buffer_ || audio_thread_running_.load())) {
+        const snd_pcm_sframes_t written = snd_pcm_writei(pcm_, data, remaining);
+        if (written == -EPIPE && snd_pcm_prepare(pcm_) >= 0) continue;
+        if (written == -EINTR) continue;
+        if (written <= 0) {
+            std::cerr << "alsa: write failed: " << snd_strerror(written)
+                      << "; audio disabled\n";
+            output_failed_ = true;
+            return false;
+        }
+        data += written * channels_;
+        remaining -= static_cast<size_t>(written);
+    }
+    return true;
+}
+
 
 // Converts and queues a batch of stereo frames for ALSA playback.
 size_t AlsaAudio::write_batch(const int16_t *data, size_t frames)
 {
     if (!data || frames == 0) {
         return 0;
+    }
+    if (!enabled()) {
+        // Muted playback still consumes the core's frames. In particular, do
+        // not convert with channels_ == 0 after every ALSA open has failed.
+        return frames;
     }
 
     const bool direct_stereo =
@@ -370,34 +414,17 @@ size_t AlsaAudio::write_batch(const int16_t *data, size_t frames)
         }
         return written;
     } else {
-        // Direct write to ALSA (blocking)
-        size_t remaining = output_frames;
-        const int16_t* ptr = output_data;
-        while (remaining > 0) {
-            snd_pcm_sframes_t written = snd_pcm_writei(pcm_, ptr, remaining);
-            if (written < 0) {
-                if (written == -EPIPE) {
-                    snd_pcm_prepare(pcm_);
-                    continue;
-                } else if (written == -EINTR) {
-                    continue;
-                } else {
-                    std::cerr << "alsa: write failed: " << snd_strerror(written) << "\n";
-                    break;
-                }
-            } else if (written == 0) {
-                break;
-            }
-            ptr += written * channels_;
-            remaining -= static_cast<size_t>(written);
-        }
-        return output_frames;
+        write_output(output_data, output_frames);
+        return frames;
     }
 }
 
 // Queues one stereo frame for ALSA playback.
 void AlsaAudio::write_sample(int16_t left, int16_t right)
 {
+    if (!enabled()) {
+        return;
+    }
     sample_accum_.push_back(left);
     sample_accum_.push_back(right);
     if (sample_accum_.size() >= kAccumFlushFrames * 2) {
@@ -408,7 +435,7 @@ void AlsaAudio::write_sample(int16_t left, int16_t right)
 
 void AlsaAudio::play_test_tone(unsigned milliseconds)
 {
-    if (!pcm_ || rate_ == 0) {
+    if (!enabled() || rate_ == 0) {
         return;
     }
 
@@ -422,10 +449,21 @@ void AlsaAudio::play_test_tone(unsigned milliseconds)
         stereo[i * 2 + 1] = sample;
     }
 
-    std::cerr << "alsa: playing " << milliseconds << "ms 440Hz test tone\n";
+    std::cerr << "audio: playing " << milliseconds << "ms 440Hz test tone\n";
     write_batch(stereo.data(), frames);
-    snd_pcm_drain(pcm_);
-    snd_pcm_prepare(pcm_);
+    // The worker owns buffered output; do not call the server API concurrently.
+    if (!use_ring_buffer_ && enabled()) {
+        if (pulse_) {
+            int error = 0;
+            if (pa_simple_drain(pulse_, &error) < 0) {
+                std::cerr << "pulse: drain failed: " << pa_strerror(error) << "\n";
+                output_failed_ = true;
+            }
+        } else {
+            snd_pcm_drain(pcm_);
+            snd_pcm_prepare(pcm_);
+        }
+    }
 }
 
 size_t AlsaAudio::convert_frames(const int16_t *data, size_t frames, std::vector<int16_t> &output)

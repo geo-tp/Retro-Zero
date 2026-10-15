@@ -1379,7 +1379,7 @@ void handle_key(unsigned raw_code)
                                    raw_code == KEY_ENTER ||
                                    raw_code == KEY_KPENTER ||
                                    raw_code == KEY_DELETE)  ||
-                                   raw_code == KEY_R || raw_code == KEY_E;
+                                   raw_code == KEY_R || raw_code == KEY_T;
 #ifdef KEY_FN
         forbidden_bind_key = forbidden_bind_key || (raw_code == KEY_FN);
 #endif

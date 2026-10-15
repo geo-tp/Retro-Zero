@@ -145,9 +145,9 @@ void EvdevInput::init_key_bindings()
 
     for (const auto &r : remaps) {
         int code = parse_env_key_code(r.env);
-        // Interdire le rebinding de E/R (volume)
-        if (code == KEY_E || code == KEY_R) {
-            std::cerr << "[WARN] Rebinding E/R is not allowed (reserved for volume control). Ignored.\n";
+        // R/T are reserved for volume down/up.
+        if (code == KEY_R || code == KEY_T) {
+            std::cerr << "[WARN] Rebinding R/T is not allowed (reserved for volume control). Ignored.\n";
             continue;
         }
         if (code >= 0 && static_cast<size_t>(code) < key_to_joypad_.size()) {
@@ -175,8 +175,8 @@ void EvdevInput::init_key_bindings()
 
     for (const auto &r : analog_remaps) {
         int code = parse_env_key_code(r.env);
-        if (code == KEY_E || code == KEY_R) {
-            std::cerr << "[WARN] Rebinding E/R is not allowed (reserved for volume control). Ignored.\n";
+        if (code == KEY_R || code == KEY_T) {
+            std::cerr << "[WARN] Rebinding R/T is not allowed (reserved for volume control). Ignored.\n";
             continue;
         }
         if (code >= 0 && static_cast<size_t>(code) < key_to_left_analog_.size()) {
@@ -284,8 +284,8 @@ void EvdevInput::poll()
             }
 
             // Cardputer FN+F/FN+X are exposed as KEY_UP/KEY_DOWN.
-            // E = volume up, R = volume down (in plus of FN+arrows)
-            if (ev.code == KEY_UP || ev.code == KEY_E) {
+            // FN+S/FN+D emit volume keys; keep R/T and FN+arrows as aliases.
+            if (ev.code == KEY_UP || ev.code == KEY_T || ev.code == KEY_VOLUMEUP) {
                 if (ev.value == 1 || ev.value == 2) {
                     ++volume_steps_;
                     volume_up_held_ = true;
@@ -296,7 +296,7 @@ void EvdevInput::poll()
                 }
                 continue;
             }
-            if (ev.code == KEY_DOWN || ev.code == KEY_R) {
+            if (ev.code == KEY_DOWN || ev.code == KEY_R || ev.code == KEY_VOLUMEDOWN) {
                 if (ev.value == 1 || ev.value == 2) {
                     --volume_steps_;
                     volume_down_held_ = true;
@@ -307,7 +307,8 @@ void EvdevInput::poll()
                 }
                 continue;
             }
-            if (ev.code == KEY_RIGHT) {
+            // FN+U/FN+I emit brightness keys; keep FN+Z/FN+C as aliases.
+            if (ev.code == KEY_RIGHT || ev.code == KEY_BRIGHTNESSUP) {
                 if (ev.value == 1 || ev.value == 2) {
                     ++brightness_steps_;
                     brightness_right_held_ = true;
@@ -318,7 +319,7 @@ void EvdevInput::poll()
                 }
                 continue;
             }
-            if (ev.code == KEY_LEFT) {
+            if (ev.code == KEY_LEFT || ev.code == KEY_BRIGHTNESSDOWN) {
                 if (ev.value == 1 || ev.value == 2) {
                     --brightness_steps_;
                     brightness_left_held_ = true;

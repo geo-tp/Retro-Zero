@@ -1067,7 +1067,7 @@ void render_file_rows()
 
     if (g_filter_label) {
         std::string text = g_filter.empty()
-            ? "type to filter"
+            ? "type to filter | Fn+Z/F/X: letters"
             : ("#55CC66 o# #666666filter: " + g_filter + "#");
         lv_label_set_text(g_filter_label, text.c_str());
     }
@@ -1302,10 +1302,6 @@ int key_to_action(unsigned code)
     case KEY_C: return KEY_RIGHT;
     case KEY_F: return KEY_UP;
     case KEY_X: return KEY_DOWN;
-    case KEY_J:
-    case KEY_K:
-    case KEY_ENTER:
-    case KEY_1: return KEY_ENTER;
     case KEY_2:
     case KEY_BACKSPACE: return KEY_BACKSPACE;
     case KEY_LEFT:
@@ -1319,9 +1315,17 @@ int key_to_action(unsigned code)
 char letter_for_key(unsigned code)
 {
     switch (code) {
+    // The Cardputer firmware sends arrow keycodes for Fn+Z/C/F/X,
+    // and KEY_VOLUMEUP for Fn+D. Recover the letters while searching.
+    case KEY_LEFT: return 'z';
+    case KEY_RIGHT: return 'c';
+    case KEY_UP: return 'f';
+    case KEY_DOWN: return 'x';
+    case KEY_VOLUMEUP: return 'd';
     case KEY_SPACE: return ' ';
     case KEY_A: return 'a';
     case KEY_B: return 'b';
+    case KEY_C: return 'c';
     case KEY_D: return 'd';
     case KEY_E: return 'e';
     case KEY_G: return 'g';
@@ -1342,11 +1346,10 @@ char letter_for_key(unsigned code)
     case KEY_V: return 'v';
     case KEY_W: return 'w';
     case KEY_Y: return 'y';
+    case KEY_1: return '1';
     case KEY_Z:
-    case KEY_C:
     case KEY_F:
     case KEY_X:
-    case KEY_1:
     case KEY_2: return 0;
     default: break;
     }
@@ -1473,7 +1476,7 @@ void handle_key(unsigned raw_code)
         return;
     }
 
-    if (raw_code == KEY_Q || raw_code == KEY_ESC) {
+    if (raw_code == KEY_ESC || (raw_code == KEY_Q && g_view != View::FilePicker)) {
         g_running = false;
         return;
     }
@@ -1619,10 +1622,11 @@ void handle_key(unsigned raw_code)
         return;
     }
 
-    // In file picker, navigation uses mapped actions from Z/C/F/X and J/K/1/2.
-    // Exception requested: physical C must type 'c' in file picker (not OK/right).
-    if (raw_code == KEY_C) {
-        g_filter.push_back('c');
+    // Search takes priority over menu shortcuts (C/Q) and Fn arrows.
+    // Only the navigation letters Z/F/X stay reserved without Fn.
+    const char letter = letter_for_key(raw_code);
+    if (letter) {
+        g_filter.push_back(letter);
         reload_files_keep_top();
         return;
     }
@@ -1641,7 +1645,7 @@ void handle_key(unsigned raw_code)
             g_filter.pop_back();
             reload_files_keep_top();
         }
-    } else if (code == KEY_ENTER && raw_code != KEY_J && raw_code != KEY_K) {
+    } else if (raw_code == KEY_ENTER) {
         if (g_files.empty()) return;
         FileEntry entry = g_files[g_file_index];
         if (entry.dir) {
@@ -1655,12 +1659,6 @@ void handle_key(unsigned raw_code)
             }
         } else {
             launch_rom(entry.path);
-        }
-    } else {
-        char c = letter_for_key(raw_code);
-        if (c) {
-            g_filter.push_back(c);
-            reload_files_keep_top();
         }
     }
 }
@@ -1749,6 +1747,8 @@ bool run_app_ui(std::string &core_path, std::string &rom_path)
     g_selected_rom.clear();
     g_filter.clear();
     g_input_fds.clear();
+    g_nav_key_down.fill(0);
+    g_nav_key_next_ms.fill(0);
     g_error_overlay = nullptr;
 
     lv_init();
